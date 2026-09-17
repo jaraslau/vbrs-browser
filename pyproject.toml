@@ -39,8 +39,22 @@ src = ["."]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
+# FastAPI's dependency-injection markers are conventionally written as
+# argument defaults (``service: ArticleService = Depends(...)``); treat them
+# as immutable so flake8-bugbear's B008 does not flag the idiom.
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Header",
+    "fastapi.Cookie",
+]
+
 [tool.ruff.lint.isort]
-known-first-party = ["api", "scripts"]
+known-first-party = ["api", "scripts", "conftest"]
+combine-as-imports = true
 
 [tool.mypy]
 python_version = "3.11"

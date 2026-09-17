@@ -6,9 +6,10 @@ Elasticsearch; the web application searches and displays the articles.
 
 ## Status
 
-Project scaffold. The repository layout, configuration, container definitions,
-and tooling are in place. Search, ingestion, and article endpoints are being
-built on top of this scaffold.
+The repository layout, configuration, container definitions, ingestion
+pipeline, and tooling are in place. The FastAPI backend exposes the health,
+article search, and article detail endpoints under `/api/v1`; the frontend is
+being built on top of them.
 
 ## Architecture
 
@@ -117,6 +118,22 @@ explicitly. Import failures exit with a non-zero status.
 | GET    | `/api/v1/health`      | Service and Elasticsearch connectivity  |
 | GET    | `/api/v1/articles`    | Paginated search / listing              |
 | GET    | `/api/v1/articles/{article_id}` | Full dictionary article      |
+
+Behavior notes:
+
+* `GET /api/v1/articles` accepts `q`, `page` (1-based) and `page_size`
+  query parameters. When `q` is missing or blank the endpoint returns a
+  deterministic paginated listing of all articles. `page_size` defaults to
+  the configured `page_size` value and is clamped to `max_page_size`; the
+  effective value is echoed back in the response.
+* `GET /api/v1/articles/{article_id}` returns 404 with a JSON error body when
+  the article does not exist.
+* All errors use the same JSON shape (`{"detail": ...}`) as FastAPI's
+  validation errors. Elasticsearch failures are logged server-side and
+  reduced to client-safe 5xx messages; raw Elasticsearch responses are never
+  exposed to the frontend.
+* `GET /api/v1/health` always answers 200 while the process is up; read the
+  `elasticsearch` field to tell a degraded service from a dead process.
 
 Interactive OpenAPI documentation is enabled for development.
 
