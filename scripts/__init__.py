@@ -1,1 +1,0 @@
-"""Command-line scripts for the vbrs-browser project."""

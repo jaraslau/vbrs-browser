@@ -34,12 +34,10 @@ SORT_CLAUSES: Final = ({"line": "asc"}, {"_id": "asc"})
 
 
 def _match(field: str, query: str, boost: float) -> Mapping[str, object]:
-    """Build an analyzed ``match`` clause against ``field``."""
     return {"match": {field: {"query": query, "boost": boost}}}
 
 
 def search_query(query: str) -> Mapping[str, object]:
-    """Build the bool-should query used to search articles by free text."""
     return {
         "bool": {
             "should": [
@@ -59,5 +57,4 @@ def search_query(query: str) -> Mapping[str, object]:
 
 
 def match_all_query() -> Mapping[str, object]:
-    """Build a match-all query used for deterministic paginated listings."""
     return {"match_all": {}}

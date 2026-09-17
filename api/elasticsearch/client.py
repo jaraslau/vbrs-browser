@@ -16,7 +16,6 @@ from api.config.settings import get_settings
 
 @lru_cache(maxsize=1)
 def get_elasticsearch_client() -> Elasticsearch:
-    """Return a process-wide :class:`Elasticsearch` client from settings."""
     settings = get_settings()
     return Elasticsearch(
         settings.es_url,
@@ -25,7 +24,6 @@ def get_elasticsearch_client() -> Elasticsearch:
 
 
 def ping_elasticsearch() -> bool:
-    """Return whether the configured Elasticsearch cluster is reachable."""
     settings = get_settings()
     return get_elasticsearch_client().options(
         request_timeout=settings.es_connect_timeout

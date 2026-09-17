@@ -1,5 +1,3 @@
-"""Tests for the consistent JSON error handlers."""
-
 from __future__ import annotations
 
 from elastic_transport import ApiResponseMeta, HttpHeaders, NodeConfig

@@ -1,1 +1,0 @@
-"""Elasticsearch client access for the vbrs-browser backend."""

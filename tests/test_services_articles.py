@@ -1,5 +1,3 @@
-"""Tests for the article application service (business rules)."""
-
 from __future__ import annotations
 
 from typing import cast

@@ -1,11 +1,3 @@
-"""FastAPI application entrypoint for the vbrs-browser backend.
-
-The app is deliberately small: configuration is loaded once from
-:mod:`api.config.settings`, CORS is wired from settings, exception handlers
-that normalize failures into a consistent JSON shape are registered, and the
-feature routers are mounted under the versioned ``/api/v1`` prefix.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -27,9 +19,7 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Manage the application's lifecycle.
-
-    Startup keeps the process bootable while Elasticsearch is still warming
+    """Startup keeps the process bootable while Elasticsearch is still warming
     up: the Elasticsearch client is created lazily on first use so a missing
     cluster never prevents the health endpoint from answering. Shutdown
     closes the shared Elasticsearch connection pool so the process can exit
@@ -46,7 +36,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 def create_app() -> FastAPI:
-    """Build and configure the FastAPI application."""
     application = FastAPI(
         title="vbrs-browser API",
         description=(

@@ -1,5 +1,3 @@
-"""Tests for the scripts.import_dictionary command-line importer."""
-
 from __future__ import annotations
 
 import json
@@ -106,9 +104,6 @@ def _patch_runtime(monkeypatch: pytest.MonkeyPatch, es_client: MagicMock) -> Non
     )
 
 
-# --- Argument parsing -----------------------------------------------------
-
-
 def test_parser_accepts_multiple_files_and_recreate_flag() -> None:
     args = build_argument_parser().parse_args(
         ["--recreate-index", "a.json", "b.json", "c.json"]
@@ -127,9 +122,6 @@ def test_parser_defaults_recreate_index_to_false() -> None:
 def test_parser_requires_at_least_one_file() -> None:
     with pytest.raises(SystemExit):
         build_argument_parser().parse_args([])
-
-
-# --- File validation ------------------------------------------------------
 
 
 def test_validate_dictionary_file_accepts_valid_array(tmp_path: Path) -> None:
@@ -205,9 +197,6 @@ def test_validate_dictionary_file_missing_file(tmp_path: Path) -> None:
         validate_dictionary_file(missing)
 
 
-# --- Batching -------------------------------------------------------------
-
-
 def test_in_batches_groups_and_flushes_tail() -> None:
     articles = [_article(line=index + 1) for index in range(5)]
 
@@ -221,9 +210,6 @@ def test_in_batches_groups_and_flushes_tail() -> None:
 def test_in_batches_rejects_non_positive_size() -> None:
     with pytest.raises(ValueError):
         list(in_batches([], size=0))
-
-
-# --- Per-file import ------------------------------------------------------
 
 
 def test_import_file_indexes_in_batches(es_client: MagicMock, tmp_path: Path) -> None:
@@ -300,9 +286,6 @@ def test_import_file_logs_progress(
     assert "progress: indexed 2 of 3" in caplog.text
     assert "imported" in caplog.text
     assert caplog.text.count("3 record(s), 3 indexed, 0 rejected") == 1
-
-
-# --- End-to-end CLI -------------------------------------------------------
 
 
 def test_run_success_creates_index_and_indexes_records(

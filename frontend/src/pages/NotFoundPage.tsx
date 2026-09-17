@@ -1,6 +1,5 @@
 import { Link } from "react-router-dom";
 
-/** Fallback rendered for unmatched routes. */
 export function NotFoundPage() {
   return (
     <section className="not-found">

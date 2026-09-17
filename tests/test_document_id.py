@@ -1,5 +1,3 @@
-"""Tests for deterministic document ID generation."""
-
 from __future__ import annotations
 
 import hashlib

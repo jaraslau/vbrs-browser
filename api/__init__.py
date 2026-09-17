@@ -1,1 +1,0 @@
-"""vbrs-browser backend package."""

@@ -6,7 +6,6 @@
 # Stage 2 copies only that environment plus the application source into a
 # minimal runtime image.
 
-# --- Builder ---------------------------------------------------------------
 FROM python:3.12-slim AS builder
 
 ENV PIP_NO_CACHE_DIR=1 \
@@ -21,7 +20,6 @@ COPY scripts ./scripts
 RUN python -m venv /opt/venv \
     && /opt/venv/bin/pip install .
 
-# --- Runtime ---------------------------------------------------------------
 FROM python:3.12-slim AS runtime
 
 ENV PATH="/opt/venv/bin:$PATH" \

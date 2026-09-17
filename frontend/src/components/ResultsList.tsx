@@ -29,7 +29,6 @@ function ResultItem({ article }: { article: Article }) {
   );
 }
 
-/** The ordered list of search results. */
 export function ResultsList({ articles }: { articles: Article[] }) {
   if (articles.length === 0) {
     return null;
