@@ -38,7 +38,6 @@ class ArticleResponse(DictionaryArticle):
 
     @classmethod
     def from_article(cls, article_id: str, article: DictionaryArticle) -> ArticleResponse:
-        """Build a response model from a stored article and its document ID."""
         return cls(id=article_id, **article.model_dump())
 
 

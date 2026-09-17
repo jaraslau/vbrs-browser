@@ -1,5 +1,3 @@
-"""Tests for the article search and detail HTTP routes."""
-
 from __future__ import annotations
 
 from collections.abc import Sequence

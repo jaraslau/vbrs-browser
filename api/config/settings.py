@@ -15,8 +15,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class LogLevel(StrEnum):
-    """Accepted logging verbosity levels."""
-
     DEBUG = "DEBUG"
     INFO = "INFO"
     WARNING = "WARNING"
@@ -38,7 +36,6 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # --- Backend -----------------------------------------------------------
     backend_host: str = "0.0.0.0"
     backend_port: int = Field(default=8000, ge=1, le=65535)
     backend_public_url: str = "http://localhost:8000"
@@ -48,7 +45,6 @@ class Settings(BaseSettings):
     #   CORS_ORIGINS=["http://localhost:5173"]
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:8080"]
 
-    # --- Elasticsearch -----------------------------------------------------
     es_url: str = "http://localhost:9200"
     es_index: str = "dictionary"
     # Timeout (seconds) used for connectivity probes (e.g. the health ping).
@@ -56,17 +52,13 @@ class Settings(BaseSettings):
     # Default timeout (seconds) for Elasticsearch API operations.
     es_request_timeout: float = Field(default=30.0, gt=0)
 
-    # --- Search / pagination ------------------------------------------------
     page_size: int = Field(default=20, ge=1)
     max_page_size: int = Field(default=100, ge=1)
 
-    # --- Ingestion ----------------------------------------------------------
     ingestion_batch_size: int = Field(default=1000, ge=1)
 
-    # --- Logging ------------------------------------------------------------
     log_level: LogLevel = LogLevel.INFO
 
-    # --- API -----------------------------------------------------------------
     api_v1_prefix: str = "/api/v1"
 
     @field_validator("api_v1_prefix")
@@ -85,7 +77,6 @@ class Settings(BaseSettings):
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    """Return the process-wide settings instance (cached)."""
     return Settings()
 
 

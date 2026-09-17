@@ -1,5 +1,3 @@
-"""Tests for Elasticsearch query DSL construction."""
-
 from __future__ import annotations
 
 from collections.abc import Mapping

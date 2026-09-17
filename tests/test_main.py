@@ -1,5 +1,3 @@
-"""Tests for FastAPI application wiring (OpenAPI, CORS, lifespan)."""
-
 from __future__ import annotations
 
 from unittest.mock import MagicMock

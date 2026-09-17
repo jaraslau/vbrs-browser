@@ -17,12 +17,6 @@ logger = logging.getLogger(__name__)
 
 
 def health_status() -> HealthResponse:
-    """Report service status and Elasticsearch connectivity.
-
-    A failed ping (Elasticsearch refusing connections, timing out, or
-    surfacing an unexpected error) maps to ``unavailable``; the endpoint
-    itself still answers so the service can be distinguished from a crash.
-    """
     try:
         connected = ping_elasticsearch()
     except Exception:

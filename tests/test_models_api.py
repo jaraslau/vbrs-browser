@@ -1,5 +1,3 @@
-"""Tests for the HTTP API Pydantic models."""
-
 from __future__ import annotations
 
 import pytest

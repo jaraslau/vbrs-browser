@@ -1,5 +1,3 @@
-"""Tests for the explicit Elasticsearch index mapping and creation helpers."""
-
 from __future__ import annotations
 
 from collections.abc import Mapping

@@ -53,16 +53,6 @@ class DictionaryFileError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class FileImportResult:
-    """Outcome of importing one dictionary data file.
-
-    Attributes:
-        path: The source file.
-        records: Number of valid records found in the file.
-        indexed: Number of records acknowledged by Elasticsearch.
-        failed: Number of records rejected by Elasticsearch.
-        errors: Human-readable description of every rejected record.
-    """
-
     path: Path
     records: int
     indexed: int
@@ -71,7 +61,6 @@ class FileImportResult:
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
-    """Return the command-line argument parser for the importer."""
     parser = argparse.ArgumentParser(
         prog="python -m scripts.import_dictionary",
         description=(
@@ -139,7 +128,6 @@ def validate_dictionary_file(path: Path) -> list[DictionaryArticle]:
 
 
 def _format_validation_errors(exc: ValidationError) -> str:
-    """Render a pydantic :class:`ValidationError` as a compact one-line message."""
     details: list[str] = []
     for error in exc.errors(include_url=False):
         location = ".".join(str(part) for part in error["loc"]) or "<record>"
@@ -150,7 +138,6 @@ def _format_validation_errors(exc: ValidationError) -> str:
 def in_batches(
     items: Iterable[DictionaryArticle], size: int
 ) -> Iterator[list[DictionaryArticle]]:
-    """Yield ``items`` as successive lists of at most ``size`` elements."""
     if size < 1:
         raise ValueError("batch size must be positive")
     batch: list[DictionaryArticle] = []
@@ -171,15 +158,6 @@ def import_file(
     Validation happens before indexing: if any record in the file is invalid,
     :class:`DictionaryFileError` is raised and nothing from the file is
     indexed. Progress is logged after every batch.
-
-    Args:
-        repository: Article repository used for bulk indexing.
-        path: Dictionary data file to import.
-        batch_size: Number of records sent per bulk request.
-
-    Raises:
-        DictionaryFileError: When the file is missing, unreadable, or contains
-            an invalid record.
     """
     articles = validate_dictionary_file(path)
     if not articles:
@@ -308,7 +286,6 @@ def run(argv: Sequence[str] | None = None) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Configure logging and run the importer; return the process exit code."""
     settings = get_settings()
     logging.basicConfig(
         level=settings.log_level.value,

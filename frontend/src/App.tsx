@@ -4,7 +4,6 @@ import { ArticlePage } from "./pages/ArticlePage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { SearchPage } from "./pages/SearchPage";
 
-/** Shared chrome rendered on every page. */
 function Layout() {
   return (
     <div className="app">

@@ -1,18 +1,3 @@
-"""Elasticsearch-backed repository for dictionary articles.
-
-The repository is the only layer that talks to Elasticsearch on behalf of the
-application. It exposes three operations:
-
-* :meth:`ArticleRepository.bulk_index` -- idempotent batch indexing,
-* :meth:`ArticleRepository.search_articles` -- free-text search with
-  deterministic pagination,
-* :meth:`ArticleRepository.get_article` -- retrieval of a single article by
-  its stable document ID.
-
-Elasticsearch responses are parsed into typed domain objects inside this
-module; raw response shapes never escape it.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -33,35 +18,23 @@ _BULK_SUCCESS_STATUSES = frozenset({200, 201})
 
 
 class RepositoryResponseError(RuntimeError):
-    """Raised when Elasticsearch returns an unexpected response shape."""
+    pass
 
 
 @dataclass(frozen=True, slots=True)
 class StoredArticle:
-    """A dictionary article paired with its stable Elasticsearch document ID."""
-
     id: str
     data: DictionaryArticle
 
 
 @dataclass(frozen=True, slots=True)
 class ArticlePage:
-    """A single page of search/listing results."""
-
     items: list[StoredArticle]
     total: int
 
 
 @dataclass(frozen=True, slots=True)
 class BulkIndexResult:
-    """Outcome of a bulk indexing operation.
-
-    Attributes:
-        indexed: Number of operations acknowledged successfully.
-        failed: Number of operations rejected by Elasticsearch.
-        errors: Human-readable description of every failed operation.
-    """
-
     indexed: int
     failed: int
     errors: tuple[str, ...]
@@ -90,13 +63,6 @@ class ArticleRepository:
         :func:`api.elasticsearch.document_id.article_document_id`, which makes
         the operation idempotent: re-importing the same source data updates
         the existing documents instead of creating duplicates.
-
-        Args:
-            articles: Articles to index.
-            batch_size: Number of documents sent per bulk request.
-
-        Raises:
-            ValueError: When ``batch_size`` is not positive.
         """
         if batch_size < 1:
             raise ValueError("batch_size must be positive")
@@ -137,14 +103,8 @@ class ArticleRepository:
     ) -> ArticlePage:
         """Search articles by free text, or list all articles when blank.
 
-        Args:
-            query: Free-text search query. ``None`` or blank returns a
-                deterministic paginated listing of all articles.
-            page: 1-based page number.
-            page_size: Number of articles per page.
-
-        Raises:
-            ValueError: When ``page`` or ``page_size`` is not positive.
+        ``None`` or a blank ``query`` returns a deterministic paginated listing
+        of all articles.
         """
         if page < 1 or page_size < 1:
             raise ValueError("page and page_size must be positive")
@@ -166,7 +126,6 @@ class ArticleRepository:
         return _parse_search_body(body)
 
     def get_article(self, article_id: str) -> StoredArticle | None:
-        """Return the article with ``article_id``, or None if it does not exist."""
         try:
             response = self._client.get(index=self._index, id=article_id)
         except NotFoundError:
@@ -183,7 +142,6 @@ class ArticleRepository:
         )
 
     def _send_bulk(self, operations: Sequence[Mapping[str, object]]) -> BulkIndexResult:
-        """Send one bulk request and parse the response into a summary."""
         response = self._client.bulk(operations=operations)
         body = cast(Mapping[str, object], response.body)
         return _parse_bulk_body(body)
@@ -223,7 +181,6 @@ def _parse_bulk_body(body: Mapping[str, object]) -> BulkIndexResult:
 
 
 def _parse_search_body(body: Mapping[str, object]) -> ArticlePage:
-    """Parse a search response body into a typed :class:`ArticlePage`."""
     raw_hits_mapping = body.get("hits")
     if not isinstance(raw_hits_mapping, Mapping):
         raise RepositoryResponseError("search response is missing the 'hits' object")
@@ -239,7 +196,6 @@ def _parse_search_body(body: Mapping[str, object]) -> ArticlePage:
 
 
 def _parse_hit(raw_hit: object) -> StoredArticle:
-    """Parse a single search hit into a :class:`StoredArticle`."""
     if not isinstance(raw_hit, Mapping):
         raise RepositoryResponseError(f"malformed search hit: {raw_hit!r}")
 

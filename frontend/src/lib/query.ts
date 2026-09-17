@@ -1,5 +1,3 @@
-/** Small helpers for reading URL query parameters. */
-
 /**
  * Parse a query-string value as a base-10 integer, falling back to
  * ``fallback`` when the value is missing or not a valid number.

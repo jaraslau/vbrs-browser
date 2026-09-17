@@ -1,5 +1,3 @@
-"""Shared pytest fixtures and test doubles for the backend test suite."""
-
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -13,7 +11,6 @@ from api.repositories.articles import ArticlePage, StoredArticle
 
 @pytest.fixture
 def es_client() -> MagicMock:
-    """Return a mock Elasticsearch client for repository/index tests."""
     return MagicMock()
 
 
@@ -22,7 +19,6 @@ def stored_article(
     word: str = "ґадалІніюм, ґадалІн",
     latin: str = "gadalinijum, gadalin",
 ) -> StoredArticle:
-    """Build a stored article with recognizable word and document ID."""
     return StoredArticle(
         id=article_id,
         data=DictionaryArticle(
@@ -35,7 +31,7 @@ def stored_article(
 
 
 class FakeArticleRepository:
-    """In-memory stand-in for :class:`ArticleRepository`.
+    """In-memory repository stand-in.
 
     Records every call so tests can assert on the arguments the service
     forwards to the data-access layer, and filters/paginates synchronously so

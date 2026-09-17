@@ -1,5 +1,3 @@
-"""Tests for the health-check HTTP route."""
-
 from __future__ import annotations
 
 import pytest

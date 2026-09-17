@@ -1,5 +1,3 @@
-"""Tests for the Elasticsearch article repository (Elasticsearch mocked)."""
-
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence

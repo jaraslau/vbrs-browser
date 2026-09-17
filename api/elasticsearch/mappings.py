@@ -32,9 +32,6 @@ from elasticsearch.exceptions import BadRequestError
 from api.config.settings import get_settings
 from api.elasticsearch.client import get_elasticsearch_client
 
-# Custom analyzer: standard tokenizer + lowercase filter. Applied to every
-# free-text field so Cyrillic/Latin words are tokenized naturally and search
-# is case-insensitive.
 INDEX_SETTINGS: Final[Mapping[str, object]] = {
     "index": {
         "analysis": {
@@ -116,7 +113,6 @@ def create_index_if_missing(client: Elasticsearch, index: str) -> bool:
 
 
 def recreate_index(client: Elasticsearch, index: str) -> None:
-    """Delete ``index`` if present, then recreate it with the explicit mapping."""
     if client.indices.exists(index=index):
         client.indices.delete(index=index)
     client.indices.create(index=index, settings=INDEX_SETTINGS, mappings=INDEX_MAPPING)
@@ -138,7 +134,6 @@ def ensure_article_index(recreate: bool = False) -> bool:
 
 
 def _is_resource_already_exists(exc: BadRequestError) -> bool:
-    """Return True when a create failure means the index already exists."""
     body = cast(Mapping[str, object], exc.body)
     error = body.get("error")
     if isinstance(error, Mapping):

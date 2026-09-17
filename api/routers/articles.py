@@ -1,13 +1,6 @@
-"""Article search and detail routes for the vbrs-browser API.
-
-The router stays thin: query parameters are validated by
-:class:`api.models.api.SearchQuery`, business rules live in
-:class:`api.services.articles.ArticleService`, and Elasticsearch access stays
-inside the repository. None of the Elasticsearch response shapes ever reach
-this layer.
-"""
-
 from __future__ import annotations
+
+from typing import Annotated
 
 from elasticsearch import Elasticsearch
 from fastapi import APIRouter, Depends
@@ -27,18 +20,16 @@ router = APIRouter(prefix="/articles", tags=["articles"])
 
 
 def get_article_repository(
-    es_client: Elasticsearch = Depends(get_elasticsearch_client),
-    settings: Settings = Depends(get_settings),
+    es_client: Annotated[Elasticsearch, Depends(get_elasticsearch_client)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> ArticleRepository:
-    """Build the repository bound to the shared Elasticsearch client."""
     return ArticleRepository(client=es_client, index=settings.es_index)
 
 
 def get_article_service(
-    repository: ArticleRepository = Depends(get_article_repository),
-    settings: Settings = Depends(get_settings),
+    repository: Annotated[ArticleRepository, Depends(get_article_repository)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> ArticleService:
-    """Build the article service with the configured pagination limits."""
     return ArticleService(repository=repository, settings=settings)
 
 
@@ -62,10 +53,9 @@ def get_article_service(
     },
 )
 def list_articles(
-    params: SearchQuery = Depends(),
-    service: ArticleService = Depends(get_article_service),
+    params: Annotated[SearchQuery, Depends()],
+    service: Annotated[ArticleService, Depends(get_article_service)],
 ) -> ArticleListResponse:
-    """Return one page of matching articles."""
     return service.search(params)
 
 
@@ -82,7 +72,6 @@ def list_articles(
 )
 def get_article(
     article_id: str,
-    service: ArticleService = Depends(get_article_service),
+    service: Annotated[ArticleService, Depends(get_article_service)],
 ) -> ArticleResponse:
-    """Return one full dictionary article."""
     return service.get_article(article_id)

@@ -1,5 +1,3 @@
-"""Tests for the pydantic-settings based configuration module."""
-
 from __future__ import annotations
 
 import pytest

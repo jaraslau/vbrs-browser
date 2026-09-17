@@ -1,5 +1,3 @@
-"""Pydantic models for dictionary data and API boundaries."""
-
 from api.models.api import (
     ArticleListResponse,
     ArticleResponse,

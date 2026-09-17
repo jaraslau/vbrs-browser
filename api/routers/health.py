@@ -1,5 +1,3 @@
-"""Health-check route for the vbrs-browser API."""
-
 from __future__ import annotations
 
 from fastapi import APIRouter
@@ -23,5 +21,4 @@ router = APIRouter(tags=["system"])
     ),
 )
 def get_health() -> HealthResponse:
-    """Return service status and Elasticsearch connectivity."""
     return health_status()

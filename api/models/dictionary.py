@@ -12,13 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class Definition(BaseModel):
-    """A single sense/meaning of a dictionary article.
-
-    Attributes:
-        number: Sense number within the article, when the source provides one.
-        text: Definition text.
-        ru_notes: Russian-language notes attached to this sense.
-    """
+    """A single sense/meaning of a dictionary article."""
 
     model_config = ConfigDict(extra="forbid", strict=True)
 
@@ -53,7 +47,6 @@ class DictionaryArticle(BaseModel):
     @field_validator("word", "raw")
     @classmethod
     def _ensure_not_blank(cls, value: str) -> str:
-        """Headwords and raw lines must not be blank."""
         if not value.strip():
             raise ValueError("must not be empty")
         return value
@@ -61,7 +54,6 @@ class DictionaryArticle(BaseModel):
     @field_validator("gender")
     @classmethod
     def _normalize_gender(cls, value: str | None) -> str | None:
-        """Coerce whitespace-only gender values to None."""
         if value is None:
             return None
         stripped = value.strip()
