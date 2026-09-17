@@ -1,13 +1,37 @@
+# Orchestration
 .orchestrator/
+
+# Environment
 .env
 .env.*
 !.env.example
+
+# Python
 __pycache__/
 *.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.coverage
+coverage/
+htmlcov/
+
+# Node / frontend
 node_modules/
 dist/
 build/
-coverage/
+*.tsbuildinfo
+
+# Logs
+*.log
+logs/
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+.DS_Store

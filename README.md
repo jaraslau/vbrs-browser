@@ -1,0 +1,158 @@
+# vbrs-browser
+
+A read-only dictionary browser: search dictionary articles and view individual
+entries. Dictionary data is supplied as JSON files and imported into
+Elasticsearch; the web application searches and displays the articles.
+
+## Status
+
+Project scaffold. The repository layout, configuration, container definitions,
+and tooling are in place. Search, ingestion, and article endpoints are being
+built on top of this scaffold.
+
+## Architecture
+
+- **Backend** (`api/`) — Python / FastAPI. Fully typed; configuration is
+  centralized in `api/config/settings.py` via `pydantic-settings`.
+  - `api/config/` — typed settings (env-driven, `.env` supported)
+  - `api/models/` — Pydantic models for dictionary data and API boundaries
+  - `api/routers/`, `api/services/`, `api/repositories/` — route/service/
+    repository layers
+  - `api/elasticsearch/` — Elasticsearch client access and query construction
+- **Frontend** (`frontend/`) — TypeScript / React (strict mode) built with Vite.
+  API access is same-origin through `/api` (proxied by the Vite dev server and
+  by nginx in production); no backend URLs are hardcoded in components.
+- **Search/database** — Elasticsearch single node via Docker Compose.
+- **Ingestion** — `scripts/` package with a command-line importer
+  (`python -m scripts.import_dictionary ...`).
+
+## Requirements
+
+- Docker with the Compose plugin (recommended path)
+- Python 3.11+ and Node.js 22+ for running services outside Docker
+- Elasticsearch 8.x (provided by Docker Compose)
+
+## Environment configuration
+
+Copy `.env.example` to `.env` and adjust values as needed:
+
+```bash
+cp .env.example .env
+```
+
+`es_url`, `es_index`, `backend_*`, `cors_origins`, pagination limits,
+ingestion batch size, and the log level are all configured here. Values flow
+into the backend exclusively through `api/config/settings.py`; the
+application never reads environment variables ad hoc.
+
+## Running with Docker Compose
+
+```bash
+cp .env.example .env
+docker compose up --build -d
+```
+
+Services:
+
+| Service        | URL                         |
+| -------------- | --------------------------- |
+| elasticsearch  | http://localhost:9200       |
+| backend API    | http://localhost:8000       |
+| frontend       | http://localhost:8080       |
+| OpenAPI docs   | http://localhost:8000/docs  |
+
+All services define health checks; `backend` and `frontend` wait for their
+dependencies to become healthy. The backend starts even when Elasticsearch is
+unavailable and reports connectivity through the health endpoint.
+
+## Running frontend/backend separately (development)
+
+Backend:
+
+```bash
+python -m venv .venv
+. .venv/bin/activate
+pip install -e ".[dev]"
+uvicorn api.main:app --reload
+```
+
+Frontend (Vite dev server proxies `/api` to the backend at
+`VITE_BACKEND_URL`, default `http://localhost:8000`):
+
+```bash
+cd frontend
+cp .env.example .env   # optional
+npm install
+npm run dev            # http://localhost:5173
+```
+
+## Elasticsearch
+
+Compose starts a single-node Elasticsearch 8 cluster with security disabled
+for local development and persists its data in the `elasticsearch_data`
+volume. The backend connects to `http://elasticsearch:9200` inside the
+Compose network (override via `ES_URL` in the backend service environment)
+and to `http://localhost:9200` when run locally (from `.env`).
+
+Explicit index mappings are defined by the ingestion pipeline.
+
+## Ingestion
+
+Dictionary JSON files are imported in batches using Elasticsearch bulk
+indexing:
+
+```bash
+docker compose exec backend \
+  python -m scripts.import_dictionary /data/dictionary-1.json
+```
+
+Documents receive a stable, deterministic identifier so repeated imports do
+not create duplicates. Pass `--recreate-index` to drop and recreate the index
+explicitly. Import failures exit with a non-zero status.
+
+## API endpoints
+
+| Method | Path                  | Description                             |
+| ------ | --------------------- | --------------------------------------- |
+| GET    | `/api/v1/health`      | Service and Elasticsearch connectivity  |
+| GET    | `/api/v1/articles`    | Paginated search / listing              |
+| GET    | `/api/v1/articles/{article_id}` | Full dictionary article      |
+
+Interactive OpenAPI documentation is enabled for development.
+
+## Tests
+
+Backend:
+
+```bash
+pip install -e ".[dev]"
+pytest
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm test
+```
+
+## Linters and type checks
+
+Backend:
+
+```bash
+ruff check .
+mypy
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm run typecheck
+npm run lint
+```
+
+## License
+
+MIT — see `license`.

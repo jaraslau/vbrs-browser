@@ -1,0 +1,1 @@
+"""FastAPI route handlers for the vbrs-browser backend."""
