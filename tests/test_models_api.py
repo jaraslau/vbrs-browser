@@ -9,6 +9,7 @@ from api.models.api import (
     ArticleListResponse,
     ArticleResponse,
     ErrorResponse,
+    HealthResponse,
     SearchQuery,
 )
 from api.models.dictionary import DictionaryArticle
@@ -39,9 +40,30 @@ def test_article_response_includes_id_and_article_fields() -> None:
     assert dumped["definitions"][0]["text"] == "гадолиний"
 
 
+def test_article_response_from_article_preserves_every_field() -> None:
+    article = sample_article()
+
+    response = ArticleResponse.from_article("abc123", article)
+
+    assert response.model_dump() == {"id": "abc123", **article.model_dump()}
+
+
 def test_article_response_requires_id() -> None:
     with pytest.raises(ValidationError):
         ArticleResponse.model_validate({**sample_article().model_dump(), "id": None})
+
+
+def test_health_response_serializes_status_and_connectivity() -> None:
+    response = HealthResponse(status="ok", elasticsearch="connected")
+
+    assert response.model_dump() == {"status": "ok", "elasticsearch": "connected"}
+
+
+def test_health_response_rejects_unknown_values() -> None:
+    with pytest.raises(ValidationError):
+        HealthResponse(status="degraded", elasticsearch="connected")
+    with pytest.raises(ValidationError):
+        HealthResponse(status="ok", elasticsearch="unknown")
 
 
 def test_article_list_response_serializes_pagination() -> None:

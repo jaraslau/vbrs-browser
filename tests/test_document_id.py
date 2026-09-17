@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 
 from api.elasticsearch.document_id import article_document_id
@@ -27,6 +28,18 @@ def test_id_is_stable_across_calls() -> None:
 
 def test_id_is_deterministic_for_equal_articles() -> None:
     assert article_document_id(_article()) == article_document_id(_article())
+
+
+def test_id_matches_independently_computed_sha256() -> None:
+    # Pin the exact contract so an accidental change of the hashed payload
+    # (field order, separator, encoding) is caught: the ID is the SHA-256 of
+    # `word` and `raw` joined by the ASCII unit separator.
+    article = _article()
+    expected = hashlib.sha256(
+        f"{article.word}\x1f{article.raw}".encode()
+    ).hexdigest()
+
+    assert article_document_id(article) == expected
 
 
 def test_id_changes_with_word() -> None:
