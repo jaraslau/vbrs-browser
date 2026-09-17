@@ -94,6 +94,15 @@ describe("ArticlePage", () => {
     );
   });
 
+  it("shows a loading message while the article request is in flight", () => {
+    mockedGetArticle.mockReturnValue(new Promise<Article>(() => {}));
+
+    renderArticlePage();
+
+    expect(screen.getByText("Loading…")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading…");
+  });
+
   it("shows a not-found message for a missing article", async () => {
     mockedGetArticle.mockRejectedValue(
       new ApiError(404, "Article 'missing' not found"),
