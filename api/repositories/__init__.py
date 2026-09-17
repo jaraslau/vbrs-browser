@@ -1,0 +1,1 @@
+"""Data-access layer (Elasticsearch repositories) for the vbrs-browser backend."""

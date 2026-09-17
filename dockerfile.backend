@@ -1,0 +1,39 @@
+# syntax=docker/dockerfile:1
+#
+# Multi-stage build for the vbrs-browser backend.
+#
+# Stage 1 installs the project into a dedicated virtual environment.
+# Stage 2 copies only that environment plus the application source into a
+# minimal runtime image.
+
+# --- Builder ---------------------------------------------------------------
+FROM python:3.12-slim AS builder
+
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /build
+
+# Install dependencies and the api/scripts packages into a virtualenv.
+COPY pyproject.toml README.md ./
+COPY api ./api
+COPY scripts ./scripts
+RUN python -m venv /opt/venv \
+    && /opt/venv/bin/pip install .
+
+# --- Runtime ---------------------------------------------------------------
+FROM python:3.12-slim AS runtime
+
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+COPY --from=builder /opt/venv /opt/venv
+COPY api ./api
+COPY scripts ./scripts
+
+EXPOSE 8000
+
+CMD ["sh", "-c", "uvicorn api.main:app --host \"${BACKEND_HOST:-0.0.0.0}\" --port \"${BACKEND_PORT:-8000}\""]

@@ -1,0 +1,1 @@
+"""Pydantic models for dictionary data and API boundaries."""
