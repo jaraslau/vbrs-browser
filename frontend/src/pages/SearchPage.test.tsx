@@ -77,6 +77,20 @@ describe("SearchPage", () => {
     );
   });
 
+  it("shows a loading message while the search request is in flight", () => {
+    mockedSearchArticles.mockReturnValue(
+      new Promise<ArticleListResponse>(() => {}),
+    );
+
+    renderSearchPage("/?q=ґадалІн");
+
+    expect(screen.getByText("Loading…")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading…");
+    expect(
+      screen.queryByRole("list", { name: "Search results" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows a summary and does not search on every keystroke", async () => {
     const user = userEvent.setup();
     mockedSearchArticles.mockResolvedValue(listing([], 0));
