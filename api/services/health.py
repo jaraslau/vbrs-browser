@@ -1,0 +1,35 @@
+"""Health-check business logic for the vbrs-browser API.
+
+The health endpoint intentionally stays available while Elasticsearch is
+down: it probes connectivity, translates the binary ping result into the
+machine-readable report consumed by the API, and lets orchestration health
+checks decide what to do with it.
+"""
+
+from __future__ import annotations
+
+import logging
+
+from api.elasticsearch.client import ping_elasticsearch
+from api.models.api import HealthResponse
+
+logger = logging.getLogger(__name__)
+
+
+def health_status() -> HealthResponse:
+    """Report service status and Elasticsearch connectivity.
+
+    A failed ping (Elasticsearch refusing connections, timing out, or
+    surfacing an unexpected error) maps to ``unavailable``; the endpoint
+    itself still answers so the service can be distinguished from a crash.
+    """
+    try:
+        connected = ping_elasticsearch()
+    except Exception:
+        logger.exception("Elasticsearch connectivity probe failed")
+        connected = False
+
+    return HealthResponse(
+        status="ok",
+        elasticsearch="connected" if connected else "unavailable",
+    )

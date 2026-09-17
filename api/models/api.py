@@ -7,9 +7,24 @@ adds identifiers and pagination metadata that do not exist in the input data.
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from api.models.dictionary import DictionaryArticle
+
+
+class HealthResponse(BaseModel):
+    """Machine-readable service status for ``GET /api/v1/health``.
+
+    Attributes:
+        status: Service status; always ``ok`` when the endpoint responds.
+        elasticsearch: Elasticsearch connectivity: ``connected`` when the
+            configured cluster answered a ping, ``unavailable`` otherwise.
+    """
+
+    status: Literal["ok"]
+    elasticsearch: Literal["connected", "unavailable"]
 
 
 class ArticleResponse(DictionaryArticle):
@@ -56,6 +71,20 @@ class SearchQuery(BaseModel):
     default page size and clamps the value to the configured maximum.
     """
 
-    q: str | None = None
-    page: int = Field(default=1, ge=1)
-    page_size: int | None = Field(default=None, ge=1)
+    q: str | None = Field(
+        default=None,
+        description=(
+            "Free-text search across the headword, latin transliteration, and "
+            "definition text. Missing or blank values return a deterministic "
+            "paginated listing of every article."
+        ),
+    )
+    page: int = Field(default=1, ge=1, description="1-based page number.")
+    page_size: int | None = Field(
+        default=None,
+        ge=1,
+        description=(
+            "Number of articles per page. Defaults to the configured page "
+            "size and is clamped to the configured maximum."
+        ),
+    )
