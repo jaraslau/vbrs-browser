@@ -1,0 +1,13 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "oc-orchestrator": {
+      "type": "local",
+      "command": [
+        "oc-orchestrator",
+        "serve"
+      ],
+      "enabled": true
+    }
+  }
+}
