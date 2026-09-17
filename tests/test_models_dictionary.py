@@ -99,6 +99,18 @@ def test_definition_requires_text() -> None:
         Definition.model_validate({"number": 1, "ru_notes": []})
 
 
+def test_definition_optional_fields_default_when_missing() -> None:
+    definition = Definition.model_validate({"text": "толькі тэкст"})
+
+    assert definition.number is None
+    assert definition.ru_notes == []
+
+
+def test_definition_unknown_fields_rejected() -> None:
+    with pytest.raises(ValidationError):
+        Definition.model_validate({"text": "значэнне", "unexpected": True})
+
+
 def test_wrong_types_rejected() -> None:
     with pytest.raises(ValidationError):
         DictionaryArticle.model_validate({**SAMPLE_ARTICLE, "line": "not-an-int"})
