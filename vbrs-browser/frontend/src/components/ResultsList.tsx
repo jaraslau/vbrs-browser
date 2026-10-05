@@ -6,8 +6,9 @@ import { firstDefinitionText } from "../lib/article";
 /**
  * A single search result linking to the full article.
  *
- * The headword is prominent; the Latin transliteration, gender, and first
- * definition are shown so results can be distinguished at a glance.
+ * The headword owns the hierarchy; the latin transliteration and gender sit
+ * beneath it on a tracked-out metadata line so results can be distinguished at
+ * a glance.
  */
 function ResultItem({ article }: { article: Article }) {
   const definition = firstDefinitionText(article);
@@ -15,11 +16,15 @@ function ResultItem({ article }: { article: Article }) {
     <li className="result-item">
       <Link to={`/articles/${encodeURIComponent(article.id)}`} className="result-link">
         <span className="result-word">{article.word}</span>
-        {article.latin !== "" && (
-          <span className="result-latin">{article.latin}</span>
-        )}
-        {article.gender !== null && (
-          <span className="result-gender">{article.gender}</span>
+        {(article.latin !== "" || article.gender !== null) && (
+          <span className="result-meta">
+            {article.latin !== "" && (
+              <span className="result-latin">{article.latin}</span>
+            )}
+            {article.gender !== null && (
+              <span className="result-gender">{article.gender}</span>
+            )}
+          </span>
         )}
       </Link>
       {definition !== null && (
