@@ -9,9 +9,9 @@ import pytest
 from elastic_transport import ApiResponseMeta, HttpHeaders, NodeConfig
 from elasticsearch import Elasticsearch, NotFoundError
 
-from api.elasticsearch.document_id import article_document_id
-from api.models.dictionary import DictionaryArticle
-from api.repositories.articles import ArticleRepository, RepositoryResponseError
+from backend.elasticsearch.document_id import article_document_id
+from backend.models.dictionary import DictionaryArticle
+from backend.repositories.articles import ArticleRepository, RepositoryResponseError
 
 
 def _article(word: str = "ґадалІніюм, ґадалІн") -> DictionaryArticle:

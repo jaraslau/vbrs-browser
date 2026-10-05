@@ -3,14 +3,14 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from api.models.api import (
+from backend.models.api import (
     ArticleListResponse,
     ArticleResponse,
     ErrorResponse,
     HealthResponse,
     SearchQuery,
 )
-from api.models.dictionary import DictionaryArticle
+from backend.models.dictionary import DictionaryArticle
 
 
 def sample_article() -> DictionaryArticle:
@@ -89,9 +89,7 @@ def test_article_list_response_rejects_invalid_pagination() -> None:
 
 
 def test_error_response_serializes_detail() -> None:
-    assert ErrorResponse(detail="article not found").model_dump() == {
-        "detail": "article not found"
-    }
+    assert ErrorResponse(detail="article not found").model_dump() == {"detail": "article not found"}
 
 
 def test_search_query_defaults() -> None:

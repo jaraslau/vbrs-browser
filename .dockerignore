@@ -1,14 +1,41 @@
+# Version control, CI, and local agent metadata
 .git
+.github
 .orchestrator
 .opencode
+
+# Secrets and local environment files are never baked into an image.
+# (.env.example is intentionally excluded too; it documents configuration
+# for humans and is not needed at build or run time.)
 .env
 .env.*
-!.env.example
+**/.env
+**/.env.*
+
+# Python caches, build artifacts, and local environments
 **/__pycache__
 **/*.pyc
-**/node_modules
-frontend/dist
+**/*.pyo
+**/*.egg-info
+.venv
+venv
 **/.pytest_cache
 **/.mypy_cache
 **/.ruff_cache
+build
+dist
+
+# Node dependencies and build output
+**/node_modules
+vbrs-browser/frontend/dist
+
+# Tests are not required to build or run the images
+tests
+
+# Logs, editor, and OS state
 *.log
+**/*.log
+.idea
+.vscode
+.DS_Store
+*.swp

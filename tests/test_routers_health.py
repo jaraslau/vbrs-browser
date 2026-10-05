@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from api.main import create_app
+from backend.main import create_app
 
 
 def _get_health(client: TestClient) -> tuple[int, dict[str, str]]:
@@ -15,7 +15,7 @@ def _get_health(client: TestClient) -> tuple[int, dict[str, str]]:
 def test_health_reports_connected_when_ping_succeeds(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("api.services.health.ping_elasticsearch", lambda: True)
+    monkeypatch.setattr("backend.services.health.ping_elasticsearch", lambda: True)
 
     status_code, body = _get_health(TestClient(create_app()))
 
@@ -26,7 +26,7 @@ def test_health_reports_connected_when_ping_succeeds(
 def test_health_reports_unavailable_when_ping_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("api.services.health.ping_elasticsearch", lambda: False)
+    monkeypatch.setattr("backend.services.health.ping_elasticsearch", lambda: False)
 
     status_code, body = _get_health(TestClient(create_app()))
 
@@ -40,7 +40,7 @@ def test_health_reports_unavailable_when_ping_raises(
     def failing_ping() -> bool:
         raise ConnectionError("connection refused")
 
-    monkeypatch.setattr("api.services.health.ping_elasticsearch", failing_ping)
+    monkeypatch.setattr("backend.services.health.ping_elasticsearch", failing_ping)
 
     status_code, body = _get_health(TestClient(create_app()))
 

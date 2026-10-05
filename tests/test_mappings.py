@@ -9,7 +9,7 @@ from elastic_transport import ApiResponseMeta, HttpHeaders, NodeConfig
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import BadRequestError
 
-from api.elasticsearch.mappings import (
+from backend.elasticsearch.mappings import (
     INDEX_MAPPING,
     INDEX_SETTINGS,
     create_index_if_missing,

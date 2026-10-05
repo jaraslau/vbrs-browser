@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from api.models.dictionary import Definition, DictionaryArticle
+from backend.models.dictionary import Definition, DictionaryArticle
 
 SAMPLE_ARTICLE: dict[str, object] = {
     "line": 10978,
@@ -36,9 +36,7 @@ def test_full_article_parses() -> None:
     assert article.be_notes == []
     assert article.ru_notes == ["Gd"]
     assert article.sources == []
-    assert article.definitions == [
-        Definition(number=None, text="гадолиний", ru_notes=["Gd"])
-    ]
+    assert article.definitions == [Definition(number=None, text="гадолиний", ru_notes=["Gd"])]
 
 
 def test_optional_fields_default_when_missing() -> None:
@@ -59,9 +57,7 @@ def test_optional_fields_default_when_missing() -> None:
 
 def test_required_fields_must_be_present() -> None:
     with pytest.raises(ValidationError):
-        DictionaryArticle.model_validate(
-            {"raw": "raw line", "word": "word", "latin": "latin"}
-        )
+        DictionaryArticle.model_validate({"raw": "raw line", "word": "word", "latin": "latin"})
 
 
 def test_blank_word_rejected() -> None:
@@ -73,9 +69,7 @@ def test_blank_word_rejected() -> None:
 
 def test_blank_raw_rejected() -> None:
     with pytest.raises(ValidationError):
-        DictionaryArticle.model_validate(
-            {"line": 1, "raw": "", "word": "word", "latin": "latin"}
-        )
+        DictionaryArticle.model_validate({"line": 1, "raw": "", "word": "word", "latin": "latin"})
 
 
 def test_link_target_is_preserved() -> None:

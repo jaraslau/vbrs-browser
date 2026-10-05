@@ -11,9 +11,9 @@ from elasticsearch import (
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from api.main import create_app
-from api.repositories.articles import RepositoryResponseError
-from api.services.articles import ArticleNotFoundError
+from backend.main import create_app
+from backend.repositories.articles import RepositoryResponseError
+from backend.services.articles import ArticleNotFoundError
 
 
 def _meta(status: int) -> ApiResponseMeta:

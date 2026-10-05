@@ -14,19 +14,37 @@ pagination) and the article detail route on top of them.
 
 ## Architecture
 
-- **Backend** (`api/`) — Python / FastAPI. Fully typed; configuration is
-  centralized in `api/config/settings.py` via `pydantic-settings`.
-  - `api/config/` — typed settings (env-driven, `.env` supported)
-  - `api/models/` — Pydantic models for dictionary data and API boundaries
-  - `api/routers/`, `api/services/`, `api/repositories/` — route/service/
-    repository layers
-  - `api/elasticsearch/` — Elasticsearch client access and query construction
-- **Frontend** (`frontend/`) — TypeScript / React (strict mode) built with Vite.
-  API access is same-origin through `/api` (proxied by the Vite dev server and
-  by nginx in production); no backend URLs are hardcoded in components.
+- **Backend** (`vbrs-browser/backend/`) — Python / FastAPI, importable as the
+  top-level `backend` package. Fully typed; configuration is centralized in
+  `backend/config/settings.py` via `pydantic-settings`.
+  - `backend/config/` — typed settings (env-driven, `.env` supported)
+  - `backend/models/` — Pydantic models for dictionary data and API boundaries
+  - `backend/routers/`, `backend/services/`, `backend/repositories/` — route/
+    service/repository layers
+  - `backend/elasticsearch/` — Elasticsearch client access and query construction
+- **Frontend** (`vbrs-browser/frontend/`) — TypeScript / React (strict mode)
+  built with Vite. API access is same-origin through `/api` (proxied by the
+  Vite dev server and by nginx in production); no backend URLs are hardcoded
+  in components.
+- **Ingestion** (`vbrs-browser/scripts/`) — command-line importer
+  (`python -m scripts.import_dictionary ...`), plus the container entrypoint.
 - **Search/database** — Elasticsearch single node via Docker Compose.
-- **Ingestion** — `scripts/` package with a command-line importer
-  (`python -m scripts.import_dictionary ...`).
+
+## Repository layout
+
+```
+<repo-root>/
+├── vbrs-browser/            # application source
+│   ├── backend/             # FastAPI service (package `backend`)
+│   ├── frontend/            # React/Vite single-page app
+│   └── scripts/             # ingestion CLI + container entrypoint
+├── tests/                   # backend test suite
+├── dockerfile.backend
+├── dockerfile.frontend
+├── docker-compose.yml
+├── .env.example             # copy to .env; single source of truth for config
+└── pyproject.toml
+```
 
 ## Requirements
 
@@ -42,10 +60,15 @@ Copy `.env.example` to `.env` and adjust values as needed:
 cp .env.example .env
 ```
 
-`es_url`, `es_index`, `backend_*`, `cors_origins`, pagination limits,
-ingestion batch size, the dictionary source directory, and the log level are
-configured here. Application settings flow through `api/config/settings.py`;
-`DICTIONARY_SOURCE_DIR` is consumed by Docker Compose as a host bind mount.
+`.env` is the single source of truth for environment-variable values and is
+gitignored. Docker Compose consumes it both for interpolation and via
+`env_file`, so no value is restated in `docker-compose.yml`. Application
+settings flow through `vbrs-browser/backend/config/settings.py`.
+
+`.env.example` documents each variable's consumer. Most are application
+settings; a few exist only for Compose wiring (`FRONTEND_PORT`,
+`ES_PUBLIC_PORT`, `BACKEND_INTERNAL_URL`, `DICTIONARY_SOURCE_DIR`) and one for
+the container entrypoint (`DICTIONARY_IMPORT_DIR`).
 
 ## Running with Docker Compose
 
@@ -67,6 +90,12 @@ All services define health checks; `backend` and `frontend` wait for their
 dependencies to become healthy. The backend starts even when Elasticsearch is
 unavailable and reports connectivity through the health endpoint.
 
+Both application containers run as dedicated unprivileged users, drop all
+Linux capabilities, and set `no-new-privileges`. Neither needs to bind a
+privileged port. The backend runs with a read-only root filesystem; the
+frontend keeps a writable path only where the nginx entrypoint renders its
+configuration, with `/tmp` mounted as an explicit tmpfs.
+
 ## Running frontend/backend separately (development)
 
 Backend:
@@ -75,14 +104,14 @@ Backend:
 python -m venv .venv
 . .venv/bin/activate
 pip install -e ".[dev]"
-uvicorn api.main:app --reload
+uvicorn backend.main:app --reload
 ```
 
 Frontend (Vite dev server proxies `/api` to the backend at
 `VITE_BACKEND_URL`, default `http://localhost:8000`):
 
 ```bash
-cd frontend
+cd vbrs-browser/frontend
 cp .env.example .env   # optional
 npm install
 npm run dev            # http://localhost:5173
@@ -96,16 +125,40 @@ volume. The backend connects to `http://elasticsearch:9200` inside the
 Compose network (override via `ES_URL` in the backend service environment)
 and to `http://localhost:9200` when run locally (from `.env`).
 
-Explicit index mappings are defined by the ingestion pipeline.
+Explicit index mappings are defined in
+`vbrs-browser/backend/elasticsearch/mappings.py` and applied by the ingestion
+pipeline.
+
+### Schema management
+
+This project has no relational database, so Alembic does not apply. The chosen
+schema-management mechanism is the explicit, version-controlled index mapping
+plus the data-and-schema fingerprint described below:
+
+- the mapping is declared in code (`INDEX_MAPPING` / `INDEX_SETTINGS`), never
+  inferred from dynamic mapping (`dynamic: strict`);
+- the fingerprint covers both the input data **and** the mapping itself, so any
+  schema or data change is detected and the index is recreated;
+- the index is only ever created or replaced by the ingestion command, never
+  implicitly at application startup — the served application is read-only.
+
+Recreating the index is destructive, so it is always performed by the explicit
+importer rather than by a migration step applied automatically on every boot.
 
 ## Ingestion
 
-Docker Compose imports the JSON files from `DICTIONARY_SOURCE_DIR` before the
-backend starts. A data-and-schema fingerprint stored in the Elasticsearch
-mapping skips unchanged data; changed data is validated before the index is
-recreated and imported, so invalid input cannot replace the last good index
-and removed articles do not linger. `sayings.json` is excluded because it
-uses a separate source schema from dictionary articles.
+`vbrs-browser/scripts/backend_entrypoint.sh` imports the JSON files mounted at
+`DICTIONARY_IMPORT_DIR` before the server starts. The importer computes a
+data-and-schema fingerprint stored in the Elasticsearch mapping, which skips
+an unchanged dataset; changed data is validated in full before the index is
+recreated and imported, so invalid input cannot replace the last good index and
+removed articles do not linger. `sayings.json` is excluded because it uses a
+separate source schema from dictionary articles.
+
+The import runs from the container entrypoint, which is safe here because
+Compose runs a single backend replica. A multi-replica or orchestrated
+deployment must move this step into a dedicated release job so replicas do not
+race to recreate the index.
 
 Dictionary JSON files can also be imported manually in batches:
 
@@ -157,7 +210,7 @@ pytest
 Frontend:
 
 ```bash
-cd frontend
+cd vbrs-browser/frontend
 npm test
 ```
 
@@ -173,7 +226,7 @@ mypy
 Frontend:
 
 ```bash
-cd frontend
+cd vbrs-browser/frontend
 npm run typecheck
 npm run lint
 ```

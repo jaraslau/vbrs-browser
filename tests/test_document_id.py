@@ -3,8 +3,8 @@ from __future__ import annotations
 import hashlib
 import re
 
-from api.elasticsearch.document_id import article_document_id
-from api.models.dictionary import DictionaryArticle
+from backend.elasticsearch.document_id import article_document_id
+from backend.models.dictionary import DictionaryArticle
 
 
 def _article(word: str = "ґадалІніюм, ґадалІн", raw: str = "raw line") -> DictionaryArticle:
@@ -33,23 +33,17 @@ def test_id_matches_independently_computed_sha256() -> None:
     # (field order, separator, encoding) is caught: the ID is the SHA-256 of
     # `word` and `raw` joined by the ASCII unit separator.
     article = _article()
-    expected = hashlib.sha256(
-        f"{article.word}\x1f{article.raw}".encode()
-    ).hexdigest()
+    expected = hashlib.sha256(f"{article.word}\x1f{article.raw}".encode()).hexdigest()
 
     assert article_document_id(article) == expected
 
 
 def test_id_changes_with_word() -> None:
-    assert article_document_id(_article(word="іншае слова")) != article_document_id(
-        _article()
-    )
+    assert article_document_id(_article(word="іншае слова")) != article_document_id(_article())
 
 
 def test_id_changes_with_raw() -> None:
-    assert article_document_id(_article(raw="another raw line")) != article_document_id(
-        _article()
-    )
+    assert article_document_id(_article(raw="another raw line")) != article_document_id(_article())
 
 
 def test_id_does_not_depend_on_article_position() -> None:

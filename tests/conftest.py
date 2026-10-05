@@ -5,8 +5,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from api.models.dictionary import DictionaryArticle
-from api.repositories.articles import ArticlePage, StoredArticle
+from backend.models.dictionary import DictionaryArticle
+from backend.repositories.articles import ArticlePage, StoredArticle
 
 
 @pytest.fixture

@@ -2,36 +2,51 @@
 #
 # Multi-stage build for the vbrs-browser backend.
 #
-# Stage 1 installs the project into a dedicated virtual environment.
-# Stage 2 copies only that environment plus the application source into a
-# minimal runtime image.
+# Stage 1 resolves the runtime dependencies into a self-contained virtual
+# environment. Stage 2 copies only that environment plus the application
+# source, and runs as an unprivileged user. The listening port is not baked
+# into the image: the entrypoint reads it from the environment, so no port
+# default is restated here.
 
-FROM python:3.12-slim AS builder
+FROM python:3.12-slim-bookworm AS builder
 
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 WORKDIR /build
 
-# Install dependencies and the api/scripts packages into a virtualenv.
 COPY pyproject.toml README.md ./
-COPY api ./api
-COPY scripts ./scripts
-RUN python -m venv /opt/venv \
-    && /opt/venv/bin/pip install .
+COPY vbrs-browser/backend ./vbrs-browser/backend
+COPY vbrs-browser/scripts ./vbrs-browser/scripts
 
-FROM python:3.12-slim AS runtime
+# Resolve third-party dependencies into the virtualenv, then drop the project
+# itself. Application source is copied into the runtime stage at /app, so it
+# must not also live inside site-packages.
+RUN python -m venv /opt/venv \
+    && /opt/venv/bin/pip install . \
+    && /opt/venv/bin/pip uninstall --yes vbrs-browser
+
+FROM python:3.12-slim-bookworm AS runtime
+
+# Fixed uid/gid so the runtime identity is reproducible across builds.
+ARG APP_UID=10001
+ARG APP_GID=10001
 
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PYTHONFAULTHANDLER=1
+
+RUN groupadd --gid "$APP_GID" app \
+    && useradd --uid "$APP_UID" --gid "$APP_GID" --no-create-home \
+        --home-dir /nonexistent --shell /usr/sbin/nologin --no-log-init app
 
 WORKDIR /app
 
 COPY --from=builder /opt/venv /opt/venv
-COPY api ./api
-COPY scripts ./scripts
+COPY --chown=app:app vbrs-browser/backend ./backend
+COPY --chown=app:app vbrs-browser/scripts ./scripts
 
-EXPOSE 8000
+USER app
 
-CMD ["sh", "scripts/backend_entrypoint.sh"]
+CMD ["sh", "./scripts/backend_entrypoint.sh"]

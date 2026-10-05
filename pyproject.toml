@@ -29,25 +29,27 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["api*", "scripts*"]
+where = ["vbrs-browser"]
+include = ["backend*", "scripts*"]
 
 [tool.ruff]
 target-version = "py311"
 line-length = 100
-src = ["."]
+src = ["vbrs-browser", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["api", "scripts", "conftest"]
+known-first-party = ["backend", "scripts", "conftest"]
 combine-as-imports = true
 
 [tool.mypy]
 python_version = "3.11"
 strict = true
 plugins = ["pydantic.mypy"]
-files = ["api", "scripts", "tests"]
+mypy_path = "vbrs-browser"
+files = ["vbrs-browser/backend", "vbrs-browser/scripts", "tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

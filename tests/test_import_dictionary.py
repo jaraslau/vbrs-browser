@@ -10,9 +10,9 @@ from unittest.mock import MagicMock
 import pytest
 from elasticsearch import Elasticsearch
 
-from api.config.settings import Settings
-from api.models.dictionary import DictionaryArticle
-from api.repositories.articles import ArticleRepository
+from backend.config.settings import Settings
+from backend.models.dictionary import DictionaryArticle
+from backend.repositories.articles import ArticleRepository
 from scripts.import_dictionary import (
     DictionaryFileError,
     build_argument_parser,
@@ -106,9 +106,7 @@ def _patch_runtime(monkeypatch: pytest.MonkeyPatch, es_client: MagicMock) -> Non
 
 
 def test_parser_accepts_multiple_files_and_recreate_flag() -> None:
-    args = build_argument_parser().parse_args(
-        ["--recreate-index", "a.json", "b.json", "c.json"]
-    )
+    args = build_argument_parser().parse_args(["--recreate-index", "a.json", "b.json", "c.json"])
 
     assert args.files == ["a.json", "b.json", "c.json"]
     assert args.recreate_index is True
@@ -245,15 +243,11 @@ def test_import_file_indexes_in_batches(es_client: MagicMock, tmp_path: Path) ->
     assert result.failed == 0
     assert result.errors == ()
     assert es_client.bulk.call_count == 3
-    operation_counts = [
-        len(call.kwargs["operations"]) for call in es_client.bulk.call_args_list
-    ]
+    operation_counts = [len(call.kwargs["operations"]) for call in es_client.bulk.call_args_list]
     assert operation_counts == [4, 4, 2]
 
 
-def test_import_file_empty_file_skips_elasticsearch(
-    es_client: MagicMock, tmp_path: Path
-) -> None:
+def test_import_file_empty_file_skips_elasticsearch(es_client: MagicMock, tmp_path: Path) -> None:
     path = _write_file(tmp_path / "empty.json", [])
     repository = _repository(es_client)
 
@@ -276,9 +270,7 @@ def test_import_file_invalid_file_raises_before_indexing(
     es_client.bulk.assert_not_called()
 
 
-def test_import_file_reports_rejected_records(
-    es_client: MagicMock, tmp_path: Path
-) -> None:
+def test_import_file_reports_rejected_records(es_client: MagicMock, tmp_path: Path) -> None:
     path = _write_file(tmp_path / "data.json", [_article_dict(), _article_dict()])
     es_client.bulk.side_effect = _bulk_rejecting_response
     repository = _repository(es_client)
@@ -349,11 +341,7 @@ def test_run_if_changed_skips_matching_populated_dataset(
     path = _write_file(tmp_path / "a.json", [_article_dict()])
     fingerprint = dataset_fingerprint([path])
     es_client.indices.get_mapping.return_value = SimpleNamespace(
-        body={
-            "test-index": {
-                "mappings": {"_meta": {"dataset_sha256": fingerprint}}
-            }
-        }
+        body={"test-index": {"mappings": {"_meta": {"dataset_sha256": fingerprint}}}}
     )
 
     assert run(["--if-changed", str(path)]) == 0
@@ -429,9 +417,7 @@ def test_run_bulk_indexes_in_settings_batch_size(
 
     assert run([str(path)]) == 0
     assert es_client.bulk.call_count == 3
-    operation_counts = [
-        len(call.kwargs["operations"]) for call in es_client.bulk.call_args_list
-    ]
+    operation_counts = [len(call.kwargs["operations"]) for call in es_client.bulk.call_args_list]
     assert operation_counts == [6, 6, 2]
 
 

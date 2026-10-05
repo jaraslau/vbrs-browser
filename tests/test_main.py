@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from api.main import create_app
+from backend.main import create_app
 
 
 def test_openapi_docs_are_enabled() -> None:
@@ -36,7 +36,7 @@ def test_openapi_documents_query_parameters_and_responses() -> None:
 
 
 def test_cors_allows_configured_origin(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("api.services.health.ping_elasticsearch", lambda: True)
+    monkeypatch.setattr("backend.services.health.ping_elasticsearch", lambda: True)
 
     with TestClient(create_app()) as client:
         response = client.get("/api/v1/health", headers={"Origin": "http://localhost:5173"})
@@ -45,7 +45,7 @@ def test_cors_allows_configured_origin(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_cors_rejects_unconfigured_origin(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("api.services.health.ping_elasticsearch", lambda: True)
+    monkeypatch.setattr("backend.services.health.ping_elasticsearch", lambda: True)
 
     with TestClient(create_app()) as client:
         response = client.get("/api/v1/health", headers={"Origin": "http://evil.example"})
@@ -59,8 +59,8 @@ def test_lifespan_closes_the_elasticsearch_client(
     es_client = MagicMock()
     get_client = MagicMock(return_value=es_client)
     get_client.cache_clear = MagicMock()
-    monkeypatch.setattr("api.main.get_elasticsearch_client", get_client)
-    monkeypatch.setattr("api.services.health.ping_elasticsearch", lambda: True)
+    monkeypatch.setattr("backend.main.get_elasticsearch_client", get_client)
+    monkeypatch.setattr("backend.services.health.ping_elasticsearch", lambda: True)
 
     with TestClient(create_app()) as client:
         client.get("/api/v1/health")

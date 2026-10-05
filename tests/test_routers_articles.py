@@ -6,9 +6,9 @@ from typing import cast
 from elasticsearch import ConnectionError as EsConnectionError
 from fastapi.testclient import TestClient
 
-from api.main import create_app
-from api.repositories.articles import ArticleRepository, StoredArticle
-from api.routers.articles import get_article_repository
+from backend.main import create_app
+from backend.repositories.articles import ArticleRepository, StoredArticle
+from backend.routers.articles import get_article_repository
 from conftest import FakeArticleRepository, stored_article
 
 
@@ -146,6 +146,4 @@ def test_list_articles_maps_elasticsearch_failure_to_json_error() -> None:
         response = client.get("/api/v1/articles")
 
     assert response.status_code == 503
-    assert response.json() == {
-        "detail": "The search backend is temporarily unavailable."
-    }
+    assert response.json() == {"detail": "The search backend is temporarily unavailable."}

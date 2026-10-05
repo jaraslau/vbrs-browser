@@ -4,10 +4,10 @@ from typing import cast
 
 import pytest
 
-from api.config.settings import Settings
-from api.models.api import SearchQuery
-from api.repositories.articles import ArticleRepository
-from api.services.articles import ArticleNotFoundError, ArticleService
+from backend.config.settings import Settings
+from backend.models.api import SearchQuery
+from backend.repositories.articles import ArticleRepository
+from backend.services.articles import ArticleNotFoundError, ArticleService
 from conftest import FakeArticleRepository, stored_article
 
 

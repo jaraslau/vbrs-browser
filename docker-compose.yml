@@ -1,14 +1,20 @@
 name: vbrs-browser
 
+# Every value below comes from `.env` (copied from `.env.example`). Compose
+# reads `.env` automatically for interpolation and the backend/frontend
+# services receive the same file through `env_file`, so no value is restated
+# here. The single exception is ES_URL, which must address the in-network
+# service name rather than the host-published address stored in `.env`.
+
 services:
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
     environment:
-      discovery.type: single-node
-      xpack.security.enabled: "false"
-      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      discovery.type: "${ES_DISCOVERY_TYPE}"
+      xpack.security.enabled: "${ES_SECURITY_ENABLED}"
+      ES_JAVA_OPTS: "${ES_JAVA_OPTS}"
     ports:
-      - "9200:9200"
+      - "${ES_PUBLIC_PORT}:9200"
     volumes:
       - elasticsearch_data:/usr/share/elasticsearch/data
     healthcheck:
@@ -25,14 +31,20 @@ services:
       dockerfile: dockerfile.backend
     env_file:
       - path: .env
-        required: false
+        required: true
     environment:
+      # Deployment-specific address of Elasticsearch inside the Compose
+      # network; the `.env` value addresses the host-published port.
       ES_URL: http://elasticsearch:9200
-      DICTIONARY_IMPORT_DIR: /data/dictionary
     volumes:
-      - "${DICTIONARY_SOURCE_DIR:-../slouniki/json/articles}:/data/dictionary:ro"
+      - "${DICTIONARY_SOURCE_DIR}:${DICTIONARY_IMPORT_DIR}:ro"
     ports:
-      - "${BACKEND_PORT:-8000}:${BACKEND_PORT:-8000}"
+      - "${BACKEND_PORT}:${BACKEND_PORT}"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     depends_on:
       elasticsearch:
         condition: service_healthy
@@ -41,7 +53,7 @@ services:
         - CMD
         - python
         - -c
-        - "import urllib.request; urllib.request.urlopen('http://localhost:${BACKEND_PORT:-8000}/api/v1/health', timeout=5)"
+        - "import urllib.request; urllib.request.urlopen('http://localhost:${BACKEND_PORT}/api/v1/health', timeout=5)"
       interval: 10s
       timeout: 10s
       retries: 10
@@ -52,13 +64,27 @@ services:
     build:
       context: .
       dockerfile: dockerfile.frontend
+    env_file:
+      - path: .env
+        required: true
     ports:
-      - "${FRONTEND_PORT:-8080}:80"
+      - "${FRONTEND_PORT}:8080"
+    # Not mounted read-only: the nginx entrypoint renders the configuration
+    # template into /etc/nginx/conf.d, a directory the image already grants to
+    # the unprivileged nginx user and to nothing else. Every other application
+    # file stays unwritable for that user, and /tmp is an explicit tmpfs
+    # because nginx keeps its pid and temporary files there.
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     depends_on:
       backend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8080/ || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from api.elasticsearch.queries import (
+from backend.elasticsearch.queries import (
     DEFINITION_BOOST,
     LATIN_BOOST,
     RAW_BOOST,
@@ -59,9 +59,7 @@ def test_word_clauses_are_included() -> None:
     should = bool_mapping.get("should")
     assert isinstance(should, list)
 
-    clause_types = {
-        next(iter(clause)) for clause in should if isinstance(clause, Mapping)
-    }
+    clause_types = {next(iter(clause)) for clause in should if isinstance(clause, Mapping)}
     assert "match" in clause_types
     assert "match_phrase_prefix" in clause_types
 

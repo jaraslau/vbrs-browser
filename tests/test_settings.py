@@ -3,15 +3,13 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from api.config.settings import LogLevel, Settings, get_settings
+from backend.config.settings import LogLevel, Settings, get_settings
 
 
 def test_defaults() -> None:
     settings = Settings(_env_file=None)
     assert settings.backend_host == "0.0.0.0"
     assert settings.backend_port == 8000
-    assert settings.backend_public_url == "http://localhost:8000"
-    assert settings.frontend_public_url == "http://localhost:8080"
     assert settings.cors_origins == ["http://localhost:5173", "http://localhost:8080"]
     assert settings.es_url == "http://localhost:9200"
     assert settings.es_index == "dictionary"
@@ -45,9 +43,7 @@ def test_environment_variables_override_defaults(monkeypatch: pytest.MonkeyPatch
 
 
 def test_cors_origins_parsed_from_json_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(
-        "CORS_ORIGINS", '["http://localhost:3000", "http://localhost:8080"]'
-    )
+    monkeypatch.setenv("CORS_ORIGINS", '["http://localhost:3000", "http://localhost:8080"]')
 
     settings = Settings(_env_file=None)
 
