@@ -75,13 +75,14 @@ INDEX_MAPPING: Final[Mapping[str, object]] = {
         "is_plural": {"type": "boolean"},
         "is_proper": {"type": "boolean"},
         "is_link": {"type": "boolean"},
+        "link": {"type": "text", "analyzer": "text_analyzer"},
         "be_notes": {"type": "text", "analyzer": "text_analyzer"},
         "ru_notes": {"type": "text", "analyzer": "text_analyzer"},
         "sources": {"type": "keyword"},
         "definitions": {
             "type": "object",
             "properties": {
-                "number": {"type": "integer"},
+                "number": {"type": "keyword"},
                 "text": {"type": "text", "analyzer": "text_analyzer"},
                 "ru_notes": {"type": "text", "analyzer": "text_analyzer"},
             },

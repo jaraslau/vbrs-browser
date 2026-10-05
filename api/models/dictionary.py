@@ -16,7 +16,7 @@ class Definition(BaseModel):
 
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    number: int | None = None
+    number: str | None = None
     text: str
     ru_notes: list[str] = Field(default_factory=list)
 
@@ -39,6 +39,7 @@ class DictionaryArticle(BaseModel):
     is_plural: bool = False
     is_proper: bool = False
     is_link: bool = False
+    link: str | None = None
     be_notes: list[str] = Field(default_factory=list)
     ru_notes: list[str] = Field(default_factory=list)
     sources: list[str] = Field(default_factory=list)

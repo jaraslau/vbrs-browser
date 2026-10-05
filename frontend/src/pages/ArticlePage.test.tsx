@@ -27,12 +27,13 @@ function makeArticle(): Article {
     is_plural: true,
     is_proper: true,
     is_link: false,
+    link: null,
     be_notes: ["Belarusian usage note"],
     ru_notes: ["Gd"],
     sources: ["Слоўнік беларускай мовы"],
     definitions: [
-      { number: 1, text: "гадолиний", ru_notes: ["хим. элемент"] },
-      { number: 2, text: "другой смысл", ru_notes: [] },
+      { number: "1", text: "гадолиний", ru_notes: ["хим. элемент"] },
+      { number: "2", text: "другой смысл", ru_notes: [] },
     ],
   };
 }

@@ -16,6 +16,7 @@ from api.repositories.articles import ArticleRepository
 from scripts.import_dictionary import (
     DictionaryFileError,
     build_argument_parser,
+    dataset_fingerprint,
     import_file,
     in_batches,
     main,
@@ -113,6 +114,12 @@ def test_parser_accepts_multiple_files_and_recreate_flag() -> None:
     assert args.recreate_index is True
 
 
+def test_parser_accepts_if_changed_flag() -> None:
+    args = build_argument_parser().parse_args(["--if-changed", "a.json"])
+
+    assert args.if_changed is True
+
+
 def test_parser_defaults_recreate_index_to_false() -> None:
     args = build_argument_parser().parse_args(["a.json"])
 
@@ -195,6 +202,19 @@ def test_validate_dictionary_file_missing_file(tmp_path: Path) -> None:
 
     with pytest.raises(DictionaryFileError, match="cannot read"):
         validate_dictionary_file(missing)
+
+
+def test_dataset_fingerprint_is_order_independent_and_detects_changes(
+    tmp_path: Path,
+) -> None:
+    first = _write_file(tmp_path / "a.json", [_article_dict(word="а")])
+    second = _write_file(tmp_path / "b.json", [_article_dict(word="б")])
+
+    original = dataset_fingerprint([first, second])
+
+    assert dataset_fingerprint([second, first]) == original
+    _write_file(second, [_article_dict(word="зменена")])
+    assert dataset_fingerprint([first, second]) != original
 
 
 def test_in_batches_groups_and_flushes_tail() -> None:
@@ -318,6 +338,64 @@ def test_run_does_not_recreate_existing_index(
     assert run([str(path)]) == 0
     es_client.indices.delete.assert_not_called()
     es_client.indices.create.assert_not_called()
+
+
+def test_run_if_changed_skips_matching_populated_dataset(
+    monkeypatch: pytest.MonkeyPatch, es_client: MagicMock, tmp_path: Path
+) -> None:
+    _patch_runtime(monkeypatch, es_client)
+    es_client.indices.exists.return_value = True
+    es_client.count.return_value = SimpleNamespace(body={"count": 1})
+    path = _write_file(tmp_path / "a.json", [_article_dict()])
+    fingerprint = dataset_fingerprint([path])
+    es_client.indices.get_mapping.return_value = SimpleNamespace(
+        body={
+            "test-index": {
+                "mappings": {"_meta": {"dataset_sha256": fingerprint}}
+            }
+        }
+    )
+
+    assert run(["--if-changed", str(path)]) == 0
+    es_client.bulk.assert_not_called()
+    es_client.indices.put_mapping.assert_not_called()
+
+
+def test_run_if_changed_imports_and_records_new_fingerprint(
+    monkeypatch: pytest.MonkeyPatch, es_client: MagicMock, tmp_path: Path
+) -> None:
+    _patch_runtime(monkeypatch, es_client)
+    es_client.indices.exists.return_value = True
+    es_client.count.return_value = SimpleNamespace(body={"count": 1})
+    es_client.indices.get_mapping.return_value = SimpleNamespace(
+        body={"test-index": {"mappings": {"_meta": {"dataset_sha256": "old"}}}}
+    )
+    es_client.bulk.side_effect = _bulk_response_from_operations
+    path = _write_file(tmp_path / "a.json", [_article_dict()])
+
+    assert run(["--if-changed", str(path)]) == 0
+    es_client.indices.delete.assert_called_once_with(index="test-index")
+    es_client.indices.create.assert_called_once()
+    es_client.indices.put_mapping.assert_called_once_with(
+        index="test-index",
+        meta={"dataset_sha256": dataset_fingerprint([path])},
+    )
+
+
+def test_run_if_changed_keeps_existing_index_when_new_data_is_invalid(
+    monkeypatch: pytest.MonkeyPatch, es_client: MagicMock, tmp_path: Path
+) -> None:
+    _patch_runtime(monkeypatch, es_client)
+    es_client.indices.exists.return_value = True
+    es_client.count.return_value = SimpleNamespace(body={"count": 1})
+    es_client.indices.get_mapping.return_value = SimpleNamespace(
+        body={"test-index": {"mappings": {"_meta": {"dataset_sha256": "old"}}}}
+    )
+    path = _write_file(tmp_path / "bad.json", [{"word": "missing fields"}])
+
+    assert run(["--if-changed", str(path)]) == 1
+    es_client.indices.delete.assert_not_called()
+    es_client.bulk.assert_not_called()
 
 
 def test_run_recreate_index_deletes_then_creates(

@@ -28,6 +28,7 @@ REQUIRED_PROPERTIES = {
     "ru_notes",
     "sources",
     "is_link",
+    "link",
 }
 
 
@@ -74,6 +75,10 @@ def test_definitions_text_is_searchable() -> None:
     assert isinstance(text, Mapping)
     assert text.get("type") == "text"
     assert text.get("analyzer") == "text_analyzer"
+
+    number = subproperties.get("number")
+    assert isinstance(number, Mapping)
+    assert number.get("type") == "keyword"
 
 
 def test_boolean_and_keyword_fields_are_mapped() -> None:

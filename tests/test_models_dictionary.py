@@ -32,6 +32,7 @@ def test_full_article_parses() -> None:
     assert article.is_plural is False
     assert article.is_proper is False
     assert article.is_link is False
+    assert article.link is None
     assert article.be_notes == []
     assert article.ru_notes == ["Gd"]
     assert article.sources == []
@@ -49,6 +50,7 @@ def test_optional_fields_default_when_missing() -> None:
     assert article.is_plural is False
     assert article.is_proper is False
     assert article.is_link is False
+    assert article.link is None
     assert article.be_notes == []
     assert article.ru_notes == []
     assert article.sources == []
@@ -76,25 +78,33 @@ def test_blank_raw_rejected() -> None:
         )
 
 
-def test_definition_number_is_nullable() -> None:
+def test_link_target_is_preserved() -> None:
+    article = DictionaryArticle.model_validate(
+        {**SAMPLE_ARTICLE, "is_link": True, "link": "абабак"}
+    )
+
+    assert article.link == "абабак"
+
+
+def test_definition_number_is_a_nullable_source_label() -> None:
     article = DictionaryArticle.model_validate(
         {
             **SAMPLE_ARTICLE,
             "definitions": [
-                {"number": 1, "text": "першае значэнне"},
+                {"number": "2?", "text": "першае значэнне"},
                 {"number": None, "text": "другое значэнне"},
             ],
         }
     )
 
-    assert article.definitions[0].number == 1
+    assert article.definitions[0].number == "2?"
     assert article.definitions[1].number is None
     assert article.definitions[1].ru_notes == []
 
 
 def test_definition_requires_text() -> None:
     with pytest.raises(ValidationError):
-        Definition.model_validate({"number": 1, "ru_notes": []})
+        Definition.model_validate({"number": "1", "ru_notes": []})
 
 
 def test_definition_optional_fields_default_when_missing() -> None:

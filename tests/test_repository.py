@@ -105,7 +105,7 @@ def test_search_articles_passes_pagination_and_query(es_client: MagicMock) -> No
     assert captured["size"] == 50
     assert captured["track_total_hits"] is True
     assert captured["rest_total_hits_as_int"] is True
-    assert captured["sort"] == ({"line": "asc"}, {"_id": "asc"})
+    assert captured["sort"] == ({"line": "asc"},)
     assert isinstance(captured["query"], Mapping)
     assert "bool" in captured["query"]
 

@@ -10,7 +10,7 @@
 /** A single sense/meaning of a dictionary article. */
 export interface Definition {
   /** Sense number within the article, when the source provides one. */
-  number: number | null;
+  number: string | null;
   /** Definition text. */
   text: string;
   /** Russian-language notes attached to this sense. */
@@ -37,6 +37,8 @@ export interface Article {
   is_proper: boolean;
   /** True when the article is a cross-reference link. */
   is_link: boolean;
+  /** Cross-reference target when this article is a link. */
+  link: string | null;
   /** Belarusian-language notes attached to the article. */
   be_notes: string[];
   /** Russian-language notes attached to the article. */

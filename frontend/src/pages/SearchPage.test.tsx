@@ -27,6 +27,7 @@ function makeArticle(id: string, word: string): Article {
     is_plural: false,
     is_proper: false,
     is_link: false,
+    link: null,
     be_notes: [],
     ru_notes: [],
     sources: [],

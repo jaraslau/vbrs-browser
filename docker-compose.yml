@@ -27,8 +27,10 @@ services:
       - path: .env
         required: false
     environment:
-      # Inside the compose network Elasticsearch is reachable by service name.
       ES_URL: http://elasticsearch:9200
+      DICTIONARY_IMPORT_DIR: /data/dictionary
+    volumes:
+      - "${DICTIONARY_SOURCE_DIR:-../slouniki/json/articles}:/data/dictionary:ro"
     ports:
       - "${BACKEND_PORT:-8000}:${BACKEND_PORT:-8000}"
     depends_on:
@@ -56,7 +58,7 @@ services:
       backend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost/ || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5

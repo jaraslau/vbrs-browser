@@ -43,9 +43,9 @@ cp .env.example .env
 ```
 
 `es_url`, `es_index`, `backend_*`, `cors_origins`, pagination limits,
-ingestion batch size, and the log level are all configured here. Values flow
-into the backend exclusively through `api/config/settings.py`; the
-application never reads environment variables ad hoc.
+ingestion batch size, the dictionary source directory, and the log level are
+configured here. Application settings flow through `api/config/settings.py`;
+`DICTIONARY_SOURCE_DIR` is consumed by Docker Compose as a host bind mount.
 
 ## Running with Docker Compose
 
@@ -100,17 +100,24 @@ Explicit index mappings are defined by the ingestion pipeline.
 
 ## Ingestion
 
-Dictionary JSON files are imported in batches using Elasticsearch bulk
-indexing:
+Docker Compose imports the JSON files from `DICTIONARY_SOURCE_DIR` before the
+backend starts. A data-and-schema fingerprint stored in the Elasticsearch
+mapping skips unchanged data; changed data is validated before the index is
+recreated and imported, so invalid input cannot replace the last good index
+and removed articles do not linger. `sayings.json` is excluded because it
+uses a separate source schema from dictionary articles.
+
+Dictionary JSON files can also be imported manually in batches:
 
 ```bash
 docker compose exec backend \
-  python -m scripts.import_dictionary /data/dictionary-1.json
+  python -m scripts.import_dictionary /data/dictionary/*.json
 ```
 
 Documents receive a stable, deterministic identifier so repeated imports do
-not create duplicates. Pass `--recreate-index` to drop and recreate the index
-explicitly. Import failures exit with a non-zero status.
+not create duplicates. Pass `--if-changed` to skip an identical dataset and
+recreate the index when it differs, or `--recreate-index` to recreate it
+unconditionally. Import failures exit with a non-zero status.
 
 ## API endpoints
 

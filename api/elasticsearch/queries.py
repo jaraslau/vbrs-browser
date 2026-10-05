@@ -29,8 +29,8 @@ DEFINITION_BOOST: Final = 2.0
 RAW_BOOST: Final = 1.0
 """Boost for a match against the original raw article text."""
 
-SORT_CLAUSES: Final = ({"line": "asc"}, {"_id": "asc"})
-"""Deterministic ordering for paginated result listings."""
+SORT_CLAUSES: Final = ({"line": "asc"},)
+"""Deterministic ordering by the source's unique line number."""
 
 
 def _match(field: str, query: str, boost: float) -> Mapping[str, object]:

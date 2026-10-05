@@ -17,10 +17,11 @@ function makeArticle(overrides: Partial<Article> = {}): Article {
     is_plural: false,
     is_proper: false,
     is_link: false,
+    link: null,
     be_notes: [],
     ru_notes: [],
     sources: [],
-    definitions: [{ number: 1, text: "гадолиний", ru_notes: [] }],
+    definitions: [{ number: "1", text: "гадолиний", ru_notes: [] }],
     ...overrides,
   };
 }

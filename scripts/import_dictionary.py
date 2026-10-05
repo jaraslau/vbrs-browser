@@ -13,8 +13,9 @@ Behavior:
 * Each file is validated in full before anything from it is indexed, so a
   file containing any invalid record is rejected as a whole.
 * The index is created with the explicit mapping (see
-  :mod:`api.elasticsearch.mappings`) when it does not exist yet; it is only
-  dropped and recreated when ``--recreate-index`` is passed.
+  :mod:`api.elasticsearch.mappings`) when it does not exist yet. It is
+  recreated when ``--recreate-index`` is passed, or when ``--if-changed``
+  detects a different source dataset.
 * Records are indexed through
   :class:`api.repositories.articles.ArticleRepository` in batches of
   ``ingestion_batch_size`` (from settings), with progress logged after every
@@ -26,18 +27,25 @@ Behavior:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import sys
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from elasticsearch import Elasticsearch
 from pydantic import ValidationError
 
 from api.config.settings import get_settings
 from api.elasticsearch.client import get_elasticsearch_client
-from api.elasticsearch.mappings import create_index_if_missing, recreate_index
+from api.elasticsearch.mappings import (
+    INDEX_MAPPING,
+    INDEX_SETTINGS,
+    create_index_if_missing,
+    recreate_index,
+)
 from api.models.dictionary import DictionaryArticle
 from api.repositories.articles import ArticleRepository
 
@@ -45,6 +53,7 @@ logger = logging.getLogger(__name__)
 
 #: Maximum number of per-record rejection details logged for one file.
 _MAX_REPORTED_ERRORS = 20
+_DATASET_FINGERPRINT_KEY = "dataset_sha256"
 
 
 class DictionaryFileError(ValueError):
@@ -74,6 +83,14 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help="delete and recreate the index with the explicit mapping before importing",
     )
     parser.add_argument(
+        "--if-changed",
+        action="store_true",
+        help=(
+            "skip importing when this exact dataset is already indexed; "
+            "recreate the index before importing when it changed"
+        ),
+    )
+    parser.add_argument(
         "files",
         nargs="+",
         metavar="FILE",
@@ -81,6 +98,49 @@ def build_argument_parser() -> argparse.ArgumentParser:
         "multiple files are processed one at a time",
     )
     return parser
+
+
+def dataset_fingerprint(paths: Iterable[Path]) -> str:
+    """Return a stable SHA-256 fingerprint for the data and index schema."""
+    digest = hashlib.sha256()
+    digest.update(
+        json.dumps(
+            {"mapping": INDEX_MAPPING, "settings": INDEX_SETTINGS},
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    )
+    for path in sorted(paths, key=lambda item: item.name):
+        try:
+            with path.open("rb") as handle:
+                file_digest = hashlib.file_digest(handle, "sha256").digest()
+        except OSError as exc:
+            raise DictionaryFileError(f"cannot read '{path}': {exc}") from exc
+        name = path.name.encode()
+        digest.update(len(name).to_bytes(4, "big"))
+        digest.update(name)
+        digest.update(file_digest)
+    return digest.hexdigest()
+
+
+def dataset_is_current(client: Elasticsearch, index: str, fingerprint: str) -> bool:
+    """Return whether a populated index records ``fingerprint`` as imported."""
+    count_body = client.count(index=index).body
+    if count_body.get("count") == 0:
+        return False
+
+    mapping_body = client.indices.get_mapping(index=index).body
+    index_mapping = mapping_body.get(index)
+    if not isinstance(index_mapping, Mapping):
+        return False
+    mappings = index_mapping.get("mappings")
+    if not isinstance(mappings, Mapping):
+        return False
+    metadata = mappings.get("_meta")
+    return isinstance(metadata, Mapping) and metadata.get(
+        _DATASET_FINGERPRINT_KEY
+    ) == fingerprint
 
 
 def validate_dictionary_file(path: Path) -> list[DictionaryArticle]:
@@ -207,19 +267,47 @@ def run(argv: Sequence[str] | None = None) -> int:
     files are still attempted. Returns a non-zero code when anything failed.
     """
     args = build_argument_parser().parse_args(argv)
+    paths = [Path(path_string) for path_string in args.files]
     settings = get_settings()
     index = settings.es_index
     batch_size = settings.ingestion_batch_size
+    fingerprint: str | None = None
+
+    if args.if_changed:
+        try:
+            fingerprint = dataset_fingerprint(paths)
+        except DictionaryFileError as exc:
+            logger.error("unable to fingerprint dictionary dataset: %s", exc)
+            return 1
 
     client = get_elasticsearch_client()
     try:
+        fresh_index = False
         if args.recreate_index:
             recreate_index(client, index)
+            fresh_index = True
             logger.info("recreated index '%s'", index)
         elif create_index_if_missing(client, index):
+            fresh_index = True
             logger.info("created index '%s'", index)
         else:
             logger.info("index '%s' already exists", index)
+
+        if fingerprint is not None and not fresh_index:
+            if dataset_is_current(client, index, fingerprint):
+                logger.info("dictionary dataset is unchanged; skipping import")
+                return 0
+            try:
+                for path in paths:
+                    validate_dictionary_file(path)
+            except DictionaryFileError as exc:
+                logger.error(
+                    "changed dictionary dataset is invalid; existing index kept: %s",
+                    exc,
+                )
+                return 1
+            recreate_index(client, index)
+            logger.info("dictionary dataset changed; recreated index '%s'", index)
     except Exception as exc:
         logger.exception("unable to prepare Elasticsearch index '%s': %s", index, exc)
         return 1
@@ -232,8 +320,7 @@ def run(argv: Sequence[str] | None = None) -> int:
     indexed = 0
     rejected = 0
 
-    for path_string in args.files:
-        path = Path(path_string)
+    for path in paths:
         try:
             result = import_file(repository, path, batch_size=batch_size)
         except DictionaryFileError as exc:
@@ -274,6 +361,15 @@ def run(argv: Sequence[str] | None = None) -> int:
             rejected,
         )
         return 1
+
+    if fingerprint is not None:
+        try:
+            client.indices.put_mapping(
+                index=index, meta={_DATASET_FINGERPRINT_KEY: fingerprint}
+            )
+        except Exception as exc:
+            logger.exception("unable to record dictionary dataset fingerprint: %s", exc)
+            return 1
 
     logger.info(
         "import complete: %d file(s), %d record(s) read, %d indexed, %d rejected",
