@@ -1,80 +1,33 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+import pytest
 
-from backend.elasticsearch.queries import (
-    DEFINITION_BOOST,
-    LATIN_BOOST,
-    LATIN_PREFIX_BOOST,
-    RAW_BOOST,
-    WORD_BOOST,
-    WORD_PREFIX_BOOST,
-    match_all_query,
-    search_query,
+from backend.elasticsearch.queries import match_all_query, search_query
+
+
+@pytest.mark.parametrize(
+    ("query", "prefix"),
+    [
+        ("ч", "ч"),
+        (" ЧАС ", "час"),
+        ("ča", "ča"),
+        (" ČAS ", "čas"),
+        ("з час", "з час"),
+        ("z čas", "z čas"),
+        ("ч*", "ч*"),
+    ],
 )
-
-EXPECTED_FIELDS = {"word", "latin", "definitions.text", "raw"}
-
-
-def _search_body(query: str) -> Mapping[str, object]:
-    return search_query(query)
-
-
-def test_search_query_uses_bool_should_with_minimum_one() -> None:
-    body = _search_body("gadalin")
-
-    bool_mapping = body.get("bool")
-    assert isinstance(bool_mapping, Mapping)
-    assert bool_mapping.get("minimum_should_match") == 1
-
-
-def test_search_query_covers_all_searchable_fields() -> None:
-    body = _search_body("gadalin")
-
-    bool_mapping = body.get("bool")
-    assert isinstance(bool_mapping, Mapping)
-    should = bool_mapping.get("should")
-    assert isinstance(should, list)
-
-    fields: set[str] = set()
-    for clause in should:
-        assert isinstance(clause, Mapping)
-        for inner in clause.values():
-            assert isinstance(inner, Mapping)
-            fields.update(str(field) for field in inner)
-
-    assert fields >= EXPECTED_FIELDS
-
-
-def test_search_query_boosts_follow_relevance_order() -> None:
-    # word/latin must outrank definition text and the raw line
-    assert WORD_BOOST > LATIN_BOOST > DEFINITION_BOOST > RAW_BOOST
-    assert WORD_PREFIX_BOOST > LATIN_BOOST
-    assert WORD_PREFIX_BOOST > LATIN_BOOST + LATIN_PREFIX_BOOST
-
-
-def test_latin_prefixes_match_before_the_word_is_complete() -> None:
-    body = search_query("gada")
-    bool_mapping = body["bool"]
-    assert isinstance(bool_mapping, Mapping)
-    clauses = bool_mapping["should"]
-    assert isinstance(clauses, list)
-    assert {
-        "match_phrase_prefix": {"latin": {"query": "gada", "boost": LATIN_PREFIX_BOOST}}
-    } in clauses
-
-
-def test_word_clauses_are_included() -> None:
-    body = _search_body("gadalin")
-
-    bool_mapping = body.get("bool")
-    assert isinstance(bool_mapping, Mapping)
-    should = bool_mapping.get("should")
-    assert isinstance(should, list)
-
-    clause_types = {next(iter(clause)) for clause in should if isinstance(clause, Mapping)}
-    assert "match" in clause_types
-    assert "match_phrase_prefix" in clause_types
+def test_search_only_prefixes_whole_headword_and_transliteration(query: str, prefix: str) -> None:
+    # Text-field queries would also match the second token of "з часам".
+    assert search_query(query) == {
+        "bool": {
+            "should": [
+                {"prefix": {"word.keyword": {"value": prefix}}},
+                {"prefix": {"latin.keyword": {"value": prefix}}},
+            ],
+            "minimum_should_match": 1,
+        }
+    }
 
 
 def test_match_all_query() -> None:

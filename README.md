@@ -189,6 +189,9 @@ Behavior notes:
   deterministic paginated listing of all articles. `page_size` defaults to
   the configured `page_size` value and is clamped to `max_page_size`; the
   effective value is echoed back in the response.
+  Nonblank queries match the beginning of the full headword or transliteration,
+  case-insensitively; later words, definitions, and raw article text do not match.
+  This applies to both live previews and submitted searches.
 * `GET /api/v1/articles/{article_id}` returns 404 with a JSON error body when
   the article does not exist.
 * All errors use the same JSON shape (`{"detail": ...}`) as FastAPI's

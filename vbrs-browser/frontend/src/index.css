@@ -216,7 +216,7 @@ button {
 .live-search {
   position: absolute;
   grid-column: 2;
-  bottom: 0;
+  top: calc(100% - 18.5rem);
   width: 100%;
   min-width: 0;
   min-height: 0;
@@ -923,7 +923,7 @@ body:has(.article-modal[open]) {
   }
   .live-search {
     grid-column: 1;
-    bottom: calc(100% + 1.5rem);
+    top: -13rem;
     padding-inline: 0.25rem;
   }
   .live-search-list a {

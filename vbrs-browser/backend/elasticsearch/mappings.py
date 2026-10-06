@@ -16,8 +16,8 @@ both index time and query time.
 ``gender`` and ``sources`` are keywords, the boolean flags are booleans, and
 ``line`` is an integer used for deterministic ordering.
 
-Field relevance is controlled at query time in
-:mod:`backend.elasticsearch.queries`.
+Search uses the normalized keyword subfields of ``word`` and ``latin`` so
+prefixes are anchored to the start of the whole name, not individual tokens.
 """
 
 from __future__ import annotations

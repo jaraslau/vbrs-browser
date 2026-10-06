@@ -101,7 +101,7 @@ class ArticleRepository:
         page: int,
         page_size: int,
     ) -> ArticlePage:
-        """Search articles by free text, or list all articles when blank.
+        """Search headword/transliteration prefixes, or list all articles when blank.
 
         ``None`` or a blank ``query`` returns a deterministic paginated listing
         of all articles.
