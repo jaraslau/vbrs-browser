@@ -17,9 +17,24 @@ from backend.config.settings import get_settings
 @lru_cache(maxsize=1)
 def get_elasticsearch_client() -> Elasticsearch:
     settings = get_settings()
+    auth: tuple[str, str] | None = (
+        (settings.es_username, settings.es_password.get_secret_value())
+        if settings.es_username and settings.es_password
+        else None
+    )
+    if settings.es_verify_certs and settings.es_ca_certs:
+        return Elasticsearch(
+            settings.es_url,
+            request_timeout=settings.es_request_timeout,
+            basic_auth=auth,
+            verify_certs=True,
+            ca_certs=settings.es_ca_certs,
+        )
     return Elasticsearch(
         settings.es_url,
         request_timeout=settings.es_request_timeout,
+        basic_auth=auth,
+        verify_certs=settings.es_verify_certs,
     )
 
 

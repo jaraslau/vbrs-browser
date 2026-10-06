@@ -1,0 +1,8 @@
+# Public entry point. Caddy terminates TLS (automatic Let's Encrypt once
+# PUBLIC_DOMAIN resolves to this host, internal CA for `localhost`) and
+# proxies everything to the frontend, which forwards /api to the backend.
+# HTTP requests are automatically redirected to HTTPS.
+
+{$PUBLIC_DOMAIN} {
+	reverse_proxy frontend:8080
+}

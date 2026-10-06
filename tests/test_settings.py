@@ -16,6 +16,10 @@ def test_defaults() -> None:
     assert settings.es_connect_timeout == 5.0
     assert settings.es_request_timeout == 30.0
     assert settings.es_pit_keep_alive_seconds == 60
+    assert settings.es_username is None
+    assert settings.es_password is None
+    assert settings.es_verify_certs is True
+    assert settings.es_ca_certs is None
     assert settings.page_size == 20
     assert settings.max_page_size == 100
     assert settings.ingestion_batch_size == 1000
@@ -54,6 +58,34 @@ def test_cors_origins_parsed_from_json_environment(monkeypatch: pytest.MonkeyPat
 def test_page_size_must_not_exceed_max_page_size() -> None:
     with pytest.raises(ValidationError):
         Settings(_env_file=None, page_size=200, max_page_size=100)
+
+
+def test_elasticsearch_credentials_and_tls_from_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ES_USERNAME", "elastic")
+    monkeypatch.setenv("ES_PASSWORD", "super-secret")
+    monkeypatch.setenv("ES_VERIFY_CERTS", "true")
+    monkeypatch.setenv("ES_CA_CERTS", "/etc/es/http_ca.crt")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.es_username == "elastic"
+    assert settings.es_password is not None
+    assert settings.es_password.get_secret_value() == "super-secret"
+    assert settings.es_verify_certs is True
+    assert settings.es_ca_certs == "/etc/es/http_ca.crt"
+
+
+def test_elasticsearch_tls_verification_can_be_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ES_VERIFY_CERTS", "false")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.es_verify_certs is False
+    assert settings.es_ca_certs is None
 
 
 def test_backend_port_must_be_in_valid_range() -> None:

@@ -24,6 +24,11 @@ search API, cancel superseded requests, and leave the submitted query unchanged.
   - `backend/routers/`, `backend/services/`, `backend/repositories/` — route/
     service/repository layers
   - `backend/elasticsearch/` — Elasticsearch client access and query construction
+- **Proxy** (`Caddyfile`, `dockerfile.proxy`) — Caddy reverse proxy that
+  terminates TLS at the edge (automatic Let's Encrypt once `PUBLIC_DOMAIN`
+  resolves to the host; internal CA for the `localhost` default) and forwards
+  everything to the frontend. It is the only service published on all
+  interfaces.
 - **Frontend** (`vbrs-browser/frontend/`) — TypeScript / React (strict mode)
   built with Vite. API access is same-origin through `/api` (proxied by the
   Vite dev server and by nginx in production); no backend URLs are hardcoded
@@ -31,8 +36,12 @@ search API, cancel superseded requests, and leave the submitted query unchanged.
   `.well-known/security.txt` (vulnerability contact, RFC 9116), and the
   nginx layer adds security headers (CSP, nosniff, frame denial, HSTS).
 - **Ingestion** (`vbrs-browser/scripts/`) — command-line importer
-  (`python -m scripts.import_dictionary ...`), plus the container entrypoint.
-- **Search/database** — Elasticsearch single node via Docker Compose.
+  (`python -m scripts.import_dictionary ...`), the container entrypoint, and
+  the `es_certs_init.sh` one-shot that bootstraps Elasticsearch's TLS
+  certificates.
+- **Search/database** — Elasticsearch single node via Docker Compose, with
+  security enabled: the cluster speaks HTTPS with a Compose-generated CA and
+  requires credentials (see Elasticsearch below).
 
 ## Repository layout
 
@@ -41,15 +50,19 @@ search API, cancel superseded requests, and leave the submitted query unchanged.
 ├── vbrs-browser/            # application source
 │   ├── backend/             # FastAPI service (package `backend`)
 │   ├── frontend/            # React/Vite single-page app
-│   └── scripts/             # ingestion CLI + container entrypoint
+│   └── scripts/             # ingestion CLI + entrypoints (backend, es_certs_init)
 ├── tests/                   # backend test suite
 ├── dockerfile.backend
 ├── dockerfile.frontend
+├── dockerfile.proxy
+├── dockerfile.elasticsearch
+├── Caddyfile               # public reverse-proxy site (env-driven PUBLIC_DOMAIN)
 ├── docker-compose.yml
 ├── .env.example             # Compose wiring; copy to .env
 ├── .env.backend.example     # backend settings; copy to .env.backend
 ├── .env.frontend.example    # frontend settings; copy to .env.frontend
 ├── .env.elasticsearch.example # Elasticsearch settings; copy to .env.elasticsearch
+├── .env.proxy.example       # proxy settings; copy to .env.proxy
 └── pyproject.toml
 ```
 
@@ -67,16 +80,18 @@ variables it needs:
 | File                  | Consumed by           | Contents                                                |
 | --------------------- | --------------------- | ------------------------------------------------------- |
 | `.env`                | Docker Compose only   | published ports, bind-mount paths, values Compose       |
-|                       |                       | injects into services (backend port, import directory)  |
+|                       |                       | injects into services (backend port, import directory, |
+|                       |                       | cluster endpoints)                                      |
 | `.env.backend`        | backend service       | application settings (pydantic-settings)                |
 | `.env.frontend`       | frontend service      | nginx upstream host for the `/api` proxy                |
-| `.env.elasticsearch`  | elasticsearch service | discovery mode, security flag, JVM heap options         |
+| `.env.elasticsearch`  | elasticsearch service | discovery mode, TLS settings, superuser password, JVM heap |
+| `.env.proxy`          | proxy service         | public hostname for TLS                                 |
 
 Every file has a matching `.env.<name>.example`. Copy them before the first
 run:
 
 ```bash
-for f in .env .env.backend .env.frontend .env.elasticsearch; do
+for f in .env .env.backend .env.frontend .env.elasticsearch .env.proxy; do
     cp "$f.example" "$f"
 done
 ```
@@ -84,51 +99,60 @@ done
 All `.env*` files are gitignored — never commit real secrets or
 environment-specific values. Docker Compose reads `.env` for interpolation
 and attaches each `.env.<service>` to its own service through `env_file`, so
-no value is restated in `docker-compose.yml`; the two values Compose owns
-(the backend port and the dictionary mount target) are injected into the
-backend through `environment`. Application settings flow through
+the settings a service needs live in its own file rather than being restated
+in `docker-compose.yml`. The values only Compose can know (the backend port,
+the dictionary mount target, and the cluster endpoint/TLS wiring that couple
+two or more services) are injected into the backend through `environment`.
+Application settings flow through
 `vbrs-browser/backend/config/settings.py`, which reads `.env.backend` when
 the backend runs outside Compose. Each example file documents its variables.
 
 ## Running with Docker Compose
 
 ```bash
-for f in .env .env.backend .env.frontend .env.elasticsearch; do
+for f in .env .env.backend .env.frontend .env.elasticsearch .env.proxy; do
     cp "$f.example" "$f"
 done
+# set a strong ELASTIC_PASSWORD in .env.elasticsearch and the matching
+# ES_PASSWORD in .env.backend; keep PUBLIC_DOMAIN=localhost for a local test
 docker compose up --build -d
 ```
 
 Services:
 
-| Service        | URL                         |
-| -------------- | --------------------------- |
-| elasticsearch  | http://localhost:9200       |
-| backend API    | http://localhost:8000       |
-| frontend       | http://localhost:8080       |
-| OpenAPI docs   | http://localhost:8000/docs  |
+| Service        | URL                                   |
+| -------------- | ------------------------------------- |
+| app (via proxy)| https://localhost (self-signed cert)  |
+| frontend       | http://localhost:8080 (loopback only) |
+| backend API    | http://localhost:8000 (loopback only) |
+| OpenAPI docs   | http://localhost:8000/docs            |
+| elasticsearch  | https://localhost:9200 (loopback only, TLS + auth) |
 
-Only the frontend is published on all interfaces; the backend and
-Elasticsearch ports are bound to `127.0.0.1` and are reachable from the
-Docker host only.
+Only the proxy is published on all interfaces (ports 80/443 for TLS
+termination); the frontend, backend, and Elasticsearch ports are bound to
+`127.0.0.1` and are reachable from the Docker host only. In production set
+`PUBLIC_DOMAIN` in `.env.proxy` to the site's hostname and point its DNS
+record at the server — Caddy then obtains a Let's Encrypt certificate, and
+plaintext HTTP requests are redirected to HTTPS.
 
 All services define health checks; `backend` and `frontend` wait for their
 dependencies to become healthy. The backend starts even when Elasticsearch is
 unavailable and reports connectivity through the health endpoint.
 
-Traffic is separated into two networks: `frontend` connects the frontend and
-the backend (the `/api` proxy hop), while `backend` connects only the backend
-and Elasticsearch. The frontend is not attached to the data network, so
-nothing outside the backend tier can reach Elasticsearch except its
-loopback-bound host port.
+Traffic is separated into two networks: `frontend` connects the proxy,
+frontend, and backend (the TLS termination and `/api` proxy hops), while
+`backend` connects only the backend and Elasticsearch. Neither the proxy nor
+the frontend is attached to the data network, so nothing outside the backend
+tier can reach Elasticsearch except its loopback-bound host port.
 
-All three containers run as dedicated unprivileged users, drop all Linux
-capabilities, set `no-new-privileges`, run with an init process, and the
-application containers use read-only root filesystems (the frontend keeps
-writable tmpfs mounts only where the nginx entrypoint renders its
-configuration and where nginx keeps its pid and cache). None needs to bind a
-privileged port. Container logs are capped at 10 MB with three rotations per
-service.
+All four containers run as dedicated unprivileged users, set
+`no-new-privileges`, run with an init process, and use read-only root
+filesystems (the frontend keeps writable tmpfs mounts only where the nginx
+entrypoint renders its configuration and where nginx keeps its pid and
+cache; the proxy and Elasticsearch keep their state in named volumes). All
+capabilities are dropped; the proxy additionally retains
+`NET_BIND_SERVICE` so its unprivileged process can bind ports 80/443.
+Container logs are capped at 10 MB with three rotations per service.
 
 ## Running frontend/backend separately (development)
 
@@ -154,11 +178,26 @@ npm run dev            # http://localhost:5173
 
 ## Elasticsearch
 
-Compose starts a single-node Elasticsearch 8 cluster with security disabled
-for local development and persists its data in the `elasticsearch_data`
-volume. The backend connects to `http://elasticsearch:9200` inside the
-Compose network (override via `ES_URL` in the backend service environment)
-and to `http://localhost:9200` when run locally (from `.env.backend`).
+Compose starts a single-node Elasticsearch 8 cluster with security and TLS
+explicitly enabled. Certificates are generated **once** by the
+`es-certs-init` service: it builds the cluster CA and a node certificate for
+`elasticsearch`/`localhost` into the `es_certs` volume with
+`elasticsearch-certutil` (as the unprivileged elasticsearch user, then exits),
+and the node runs under the manual `xpack.security.*` settings in
+`.env.elasticsearch` (`ELASTIC_USERNAME`/`ELASTIC_PASSWORD`). The image's
+first-boot security auto-configuration is deliberately not used: it cannot
+stage its certificates onto a mounted volume
+(`Files.move(..., COPY_ATTRIBUTES)` fails across the mount boundary). All data
+is persisted in the `elasticsearch_data` volume.
+
+The backend authenticates with the same credentials (from `.env.backend`) and,
+inside Compose, trusts the cluster through the shared `es_certs` volume via
+`ES_VERIFY_CERTS=true` and `ES_CA_CERTS=/data/es_certs/ca/ca.crt` (both set
+by Compose). A backend run on the Docker host against the loopback port
+(`https://localhost:9200`) cannot reach that in-container CA, so `.env.backend`
+sets `ES_VERIFY_CERTS=false` for local development; leave the Compose override
+as `true` in deployments. Cluster address: `https://elasticsearch:9200`
+in-network (Compose override), `https://localhost:9200` when run locally.
 
 Explicit index mappings are defined in
 `vbrs-browser/backend/elasticsearch/mappings.py` and applied by the ingestion

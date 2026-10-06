@@ -1,0 +1,23 @@
+# syntax=docker/dockerfile:1
+#
+# Elasticsearch runtime/build image.
+#
+# The image ships config/certs pre-created and owned by the unprivileged
+# elasticsearch user so the shared `es_certs` volume materializes writable
+# (volume first-use copy-up preserves image ownership). es_certs_init.sh is a
+# one-shot bootstrap that generates the cluster CA and node certificate into
+# that volume before the node starts; the node itself uses explicit TLS
+# settings. The official image's first-boot security auto-configuration is not
+# used because it cannot stage its certificates onto a mounted volume.
+
+FROM docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+
+USER root
+RUN mkdir -p /usr/share/elasticsearch/config/certs \
+    && chown elasticsearch:root /usr/share/elasticsearch/config/certs \
+    && chmod 0755 /usr/share/elasticsearch/config/certs
+COPY vbrs-browser/scripts/es_certs_init.sh /usr/local/bin/es_certs_init.sh
+RUN chmod 0755 /usr/local/bin/es_certs_init.sh
+USER elasticsearch
+
+EXPOSE 9200 9300

@@ -1,0 +1,25 @@
+# syntax=docker/dockerfile:1
+#
+# Hardened Caddy runtime image. The base image runs as root so it can bind
+# the privileged ports and write its state; this stage creates a dedicated
+# unprivileged user whose identity also owns the /data and /config volumes,
+# so Compose can grant just NET_BIND_SERVICE and keep a read-only root
+# filesystem.
+#
+# Published port numbers (80/443) are NOT baked in; Compose owns the
+# host-side mapping.
+
+FROM caddy:2-alpine
+
+# Fixed uid/gid so volume ownership is reproducible across builds.
+ARG CADDY_UID=1001
+ARG CADDY_GID=1001
+
+RUN addgroup -g "$CADDY_GID" caddy \
+    && adduser -D -H -u "$CADDY_UID" -G caddy caddy \
+    && mkdir -p /data /config \
+    && chown -R caddy:caddy /data /config
+
+USER caddy
+
+EXPOSE 80 443

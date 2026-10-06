@@ -11,7 +11,7 @@ from enum import StrEnum
 from functools import lru_cache
 from typing import Final
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 MAX_ES_RESULT_WINDOW: Final = 10_000
@@ -53,6 +53,15 @@ class Settings(BaseSettings):
     # Default timeout (seconds) for Elasticsearch API operations.
     es_request_timeout: float = Field(default=30.0, gt=0)
     es_pit_keep_alive_seconds: int = Field(default=60, gt=0)
+
+    # Cluster credentials sent as HTTP basic auth; both must be set to enable.
+    es_username: str | None = None
+    es_password: SecretStr | None = None
+    # TLS verification for the cluster. Left on in the Compose deployment,
+    # where ES_CA_CERTS points at Elasticsearch's auto-generated CA; local
+    # development against the self-signed host port disables it.
+    es_verify_certs: bool = True
+    es_ca_certs: str | None = None
 
     page_size: int = Field(default=20, ge=1)
     max_page_size: int = Field(default=100, ge=1, le=MAX_ES_RESULT_WINDOW)

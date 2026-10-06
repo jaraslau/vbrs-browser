@@ -5,28 +5,39 @@ name: vbrs-browser
 #
 # - `.env` — read by Compose for interpolation only: published ports, the
 #   dictionary bind mount, and the values a service needs at runtime but
-#   that Compose itself owns (backend port, import directory), injected
-#   through `environment`.
+#   that Compose itself owns (backend port, import directory, cluster
+#   endpoints and TLS wiring), injected through `environment`.
 # - `.env.<service>` — each service receives only its own file via
 #   `env_file`, never the whole repository configuration.
 #
 # Network topology (web tier / data tier):
 #
-#   internet ──► frontend ──► backend ──► elasticsearch
-#                  (frontend net)   (backend net)
+#   internet ──► proxy ──► frontend ──► backend ──► elasticsearch
+#   80/443,TLS   (frontend net)   (frontend net)   (backend net)
 #
-# - `frontend`: frontend and backend only, so nginx can proxy /api. This is
-#   the only network attached to a publicly published port.
+# - `frontend`: proxy, frontend and backend, so Caddy can terminate TLS and
+#   nginx can forward /api. Only the proxy publishes a port on all
+#   interfaces; the frontend port is bound to 127.0.0.1 for local access
+#   that bypasses the proxy.
 # - `backend`: backend and elasticsearch only. Isolation is by membership:
-#   the frontend is not attached to it, so nothing outside the data tier can
-#   reach Elasticsearch. The network must stay non-`internal` because Docker
-#   does not publish ports on internal networks and Elasticsearch is
-#   published on 127.0.0.1; if host access to Elasticsearch is not needed,
-#   mark it `internal` to cut the data plane off from every other network.
+#   neither the proxy nor the frontend is attached to it, so nothing
+#   outside the data tier can reach Elasticsearch. The network must stay
+#   non-`internal` because Docker does not publish ports on internal
+#   networks and Elasticsearch is published on 127.0.0.1; if host access to
+#   Elasticsearch is not needed, mark it `internal` to cut the data plane
+#   off from every other network.
 #
-# Ports: the frontend is published on all interfaces (it is the public
-# entry point); backend and Elasticsearch are bound to 127.0.0.1 for local
-# development access only.
+# TLS and authentication:
+# - Caddy terminates TLS at the edge and redirects HTTP to HTTPS. Note the
+#   default Let's Encrypt HTTP-01 challenge requires the VPS's port 80 to be
+#   reachable from the internet; the plaintext listener is not optional.
+# - Elasticsearch runs with security and TLS enabled, using a cluster CA and a
+#   node certificate that the es-certs-init service generates once into the
+#   `es_certs` volume (the image's first-boot auto-configuration cannot write
+#   onto a mounted volume, so the node is configured manually). The backend
+#   shares that same volume read-only and trusts the CA through
+#   ES_CA_CERTS/ES_VERIFY_CERTS, injected by Compose; a locally run backend
+#   against the loopback port disables verification instead (dev only).
 # ---------------------------------------------------------------------------
 
 x-logging: &default-logging
@@ -36,8 +47,77 @@ x-logging: &default-logging
     max-file: "3"
 
 services:
+  es-certs-init:
+    # One-shot bootstrap: generates the Elasticsearch cluster CA and the node
+    # TLS certificate (PEM) into the shared es_certs volume as the
+    # unprivileged elasticsearch user, then exits. Idempotent: skips
+    # generation when the certificates already exist.
+    build:
+      context: .
+      dockerfile: dockerfile.elasticsearch
+    entrypoint: ["/usr/local/bin/es_certs_init.sh"]
+    volumes:
+      - es_certs:/usr/share/elasticsearch/config/certs
+    networks:
+      - backend
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    init: true
+    logging: *default-logging
+    restart: "no"
+
+  proxy:
+    build:
+      context: .
+      dockerfile: dockerfile.proxy
+    env_file:
+      - path: .env.proxy
+        required: true
+    networks:
+      - frontend
+    ports:
+      - "${HTTP_PORT}:80"
+      - "${HTTPS_PORT}:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    # Runtime state (data, config) lives in the named volumes, which the
+    # image pre-owns for the unprivileged caddy user; the only privilege
+    # Caddy needs on top of a rootless filesystem is binding 80/443.
+    tmpfs:
+      - /tmp
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    init: true
+    depends_on:
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      # The admin endpoint only answers on the container's loopback; a
+      # non-200 or unparseable response marks Caddy unhealthy.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:2019/config/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    logging: *default-logging
+    restart: unless-stopped
+
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    # dockerfile.elasticsearch pre-creates config/certs owned by the
+    # elasticsearch user so the es_certs volume materializes writable for
+    # es-certs-init.
+    build:
+      context: .
+      dockerfile: dockerfile.elasticsearch
     env_file:
       - path: .env.elasticsearch
         required: true
@@ -47,8 +127,18 @@ services:
       - backend
     volumes:
       - elasticsearch_data:/usr/share/elasticsearch/data
+      # Cluster CA and node certificate generated by es-certs-init so the
+      # backend can trust the cluster with verification enabled.
+      - es_certs:/usr/share/elasticsearch/config/certs
+    depends_on:
+      es-certs-init:
+        condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt -u elastic:$${ELASTIC_PASSWORD} https://localhost:9200/_cluster/health || exit 1",
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -70,7 +160,12 @@ services:
       - path: .env.backend
         required: true
     environment:
-      ES_URL: http://elasticsearch:9200
+      # Cluster endpoint/TLS wiring lives in the data tier, so Compose owns
+      # it; authentication comes from .env.backend (must match
+      # .env.elasticsearch).
+      ES_URL: https://elasticsearch:9200
+      ES_VERIFY_CERTS: "true"
+      ES_CA_CERTS: /data/es_certs/ca/ca.crt
       BACKEND_PORT: "${BACKEND_PORT}"
       DICTIONARY_IMPORT_DIR: "${DICTIONARY_IMPORT_DIR}"
     networks:
@@ -78,6 +173,7 @@ services:
       - backend
     volumes:
       - "${DICTIONARY_SOURCE_DIR}:${DICTIONARY_IMPORT_DIR}:ro"
+      - es_certs:/data/es_certs:ro
     ports:
       - "127.0.0.1:${BACKEND_PORT}:${BACKEND_PORT}"
     read_only: true
@@ -116,7 +212,7 @@ services:
     networks:
       - frontend
     ports:
-      - "${FRONTEND_PORT}:8080"
+      - "127.0.0.1:${FRONTEND_PORT}:8080"
     read_only: true
     # The nginx entrypoint renders the configuration template into
     # /etc/nginx/conf.d and nginx keeps its pid and cache under /tmp and
@@ -150,3 +246,6 @@ networks:
 
 volumes:
   elasticsearch_data:
+  caddy_data:
+  caddy_config:
+  es_certs:
