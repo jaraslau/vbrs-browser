@@ -65,7 +65,7 @@ export function SearchPage() {
   return (
     <section className="search-page">
       <div className="search-intro">
-        <p className="eyebrow">Беларуска-расейскі слоўнік</p>
+        <p className="eyebrow">cold storage for my word archive</p>
         <h2>
           Belarusian-Russian <br />
           <em>glacier.</em>
@@ -125,7 +125,7 @@ export function SearchPage() {
             <h3 id="index-heading">
               {query === "" ? "Dictionary entries" : "Search results"}
             </h3>
-            <span className="eyebrow">BE / RU</span>
+            <span className="eyebrow">index</span>
           </div>
 
           {search.status === "loading" && <LoadingMessage />}
