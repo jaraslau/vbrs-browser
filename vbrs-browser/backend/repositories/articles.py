@@ -5,8 +5,9 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import cast
 
-from elasticsearch import Elasticsearch, NotFoundError
+from elasticsearch import ApiError, Elasticsearch, NotFoundError, TransportError
 
+from backend.config.settings import MAX_ES_RESULT_WINDOW, get_settings
 from backend.elasticsearch.document_id import article_document_id
 from backend.elasticsearch.queries import SORT_CLAUSES, match_all_query, search_query
 from backend.models.dictionary import DictionaryArticle
@@ -108,22 +109,77 @@ class ArticleRepository:
         """
         if page < 1 or page_size < 1:
             raise ValueError("page and page_size must be positive")
+        if page_size > MAX_ES_RESULT_WINDOW:
+            raise ValueError("page_size exceeds the Elasticsearch result window")
 
         es_query = match_all_query()
         if query is not None and query.strip():
             es_query = search_query(query.strip())
 
+        offset = (page - 1) * page_size
+        if offset + page_size > MAX_ES_RESULT_WINDOW:
+            return self._search_deep_page(es_query, offset, page_size)
+
         response = self._client.search(
             index=self._index,
             query=es_query,
             sort=SORT_CLAUSES,
-            from_=(page - 1) * page_size,
+            from_=offset,
             size=page_size,
             track_total_hits=True,
             rest_total_hits_as_int=True,
         )
         body = cast(Mapping[str, object], response.body)
         return _parse_search_body(body)
+
+    def _search_deep_page(
+        self, query: Mapping[str, object], offset: int, page_size: int
+    ) -> ArticlePage:
+        keep_alive = f"{get_settings().es_pit_keep_alive_seconds}s"
+        opened = self._client.open_point_in_time(index=self._index, keep_alive=keep_alive)
+        pit_id = opened.body.get("id")
+        if not isinstance(pit_id, str) or not pit_id:
+            raise RepositoryResponseError("snapshot response is missing the 'id' field")
+
+        remaining = offset
+        cursor: list[object] | None = None
+        try:
+            while True:
+                # Only cursor metadata is fetched while skipping to a numbered page.
+                response = self._client.search(
+                    pit={"id": pit_id, "keep_alive": keep_alive},
+                    query=query,
+                    sort=SORT_CLAUSES,
+                    search_after=cursor,
+                    size=min(remaining, MAX_ES_RESULT_WINDOW) if remaining else page_size,
+                    source=remaining == 0,
+                    track_total_hits=True,
+                    rest_total_hits_as_int=True,
+                    allow_partial_search_results=False,
+                )
+                body = cast(Mapping[str, object], response.body)
+                refreshed_id = body.get("pit_id")
+                if isinstance(refreshed_id, str) and refreshed_id:
+                    pit_id = refreshed_id
+                hits, total = _parse_search_hits(body)
+                if offset >= total:
+                    return ArticlePage(items=[], total=total)
+                if remaining == 0:
+                    return ArticlePage(items=[_parse_hit(hit) for hit in hits], total=total)
+                if not hits or len(hits) > remaining:
+                    raise RepositoryResponseError("snapshot returned an inconsistent page boundary")
+                last_hit = hits[-1]
+                sort_values = last_hit.get("sort") if isinstance(last_hit, Mapping) else None
+                if not isinstance(sort_values, list) or not sort_values or sort_values == cursor:
+                    raise RepositoryResponseError("search hit is missing a progressing sort cursor")
+                cursor = sort_values
+                remaining -= len(hits)
+        finally:
+            try:
+                self._client.close_point_in_time(id=pit_id)
+            except (ApiError, TransportError):
+                # The TTL remains a backstop if cleanup fails; preserve the search outcome.
+                logger.warning("Could not close pagination snapshot", exc_info=True)
 
     def get_article(self, article_id: str) -> StoredArticle | None:
         try:
@@ -179,6 +235,13 @@ def _parse_bulk_body(body: Mapping[str, object]) -> BulkIndexResult:
 
 
 def _parse_search_body(body: Mapping[str, object]) -> ArticlePage:
+    hits, total = _parse_search_hits(body)
+    return ArticlePage(items=[_parse_hit(raw_hit) for raw_hit in hits], total=total)
+
+
+def _parse_search_hits(body: Mapping[str, object]) -> tuple[list[object], int]:
+    if body.get("timed_out") is True:
+        raise RepositoryResponseError("search timed out before completing the page")
     raw_hits_mapping = body.get("hits")
     if not isinstance(raw_hits_mapping, Mapping):
         raise RepositoryResponseError("search response is missing the 'hits' object")
@@ -190,7 +253,7 @@ def _parse_search_body(body: Mapping[str, object]) -> ArticlePage:
     if not isinstance(raw_total, int):
         raise RepositoryResponseError("search response is missing the total hit count")
 
-    return ArticlePage(items=[_parse_hit(raw_hit) for raw_hit in hits], total=raw_total)
+    return hits, raw_total
 
 
 def _parse_hit(raw_hit: object) -> StoredArticle:

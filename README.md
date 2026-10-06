@@ -192,6 +192,11 @@ Behavior notes:
   Nonblank queries match the beginning of the full headword or transliteration,
   case-insensitively; later words, definitions, and raw article text do not match.
   This applies to both live previews and submitted searches.
+  Numbered pages beyond Elasticsearch's 10,000-hit result window use bounded
+  `search_after` requests within a short-lived point-in-time snapshot. Skipped
+  articles are not downloaded; only their sort cursors are fetched. The snapshot
+  closes after each API request. Deep jumps require more backend requests than
+  shallow pages; the index's result-window limit does not need to be raised.
 * `GET /api/v1/articles/{article_id}` returns 404 with a JSON error body when
   the article does not exist.
 * All errors use the same JSON shape (`{"detail": ...}`) as FastAPI's

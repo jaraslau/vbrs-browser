@@ -7,9 +7,11 @@ from unittest.mock import MagicMock
 
 import pytest
 from elastic_transport import ApiResponseMeta, HttpHeaders, NodeConfig
-from elasticsearch import Elasticsearch, NotFoundError
+from elasticsearch import ConnectionError as EsConnectionError, Elasticsearch, NotFoundError
 
+from backend.config.settings import MAX_ES_RESULT_WINDOW
 from backend.elasticsearch.document_id import article_document_id
+from backend.elasticsearch.queries import search_query
 from backend.models.dictionary import DictionaryArticle
 from backend.repositories.articles import ArticleRepository, RepositoryResponseError
 
@@ -156,6 +158,120 @@ def test_search_articles_raises_on_malformed_response(es_client: MagicMock) -> N
 
     with pytest.raises(RepositoryResponseError):
         repository.search_articles(query=None, page=1, page_size=20)
+
+
+def _configure_windowed_search(es_client: MagicMock, total: int) -> None:
+    es_client.open_point_in_time.return_value = SimpleNamespace(body={"id": "pit-0"})
+    request_count = 0
+
+    def search(**kwargs: object) -> SimpleNamespace:
+        nonlocal request_count
+        offset = kwargs.get("from_", 0)
+        size = kwargs["size"]
+        assert isinstance(offset, int) and isinstance(size, int)
+        assert offset + size <= MAX_ES_RESULT_WINDOW, "Elasticsearch result window exceeded"
+        cursor = kwargs.get("search_after")
+        if cursor is not None:
+            assert offset == 0
+            assert isinstance(cursor, list)
+            offset = int(cursor[1]) + 1
+        if "pit" in kwargs:
+            assert "index" not in kwargs
+            pit = kwargs["pit"]
+            assert isinstance(pit, dict)
+            assert pit["id"] == f"pit-{request_count}"
+        request_count += 1
+        hits: list[dict[str, object]] = []
+        for position in range(offset, min(total, offset + size)):
+            hit: dict[str, object] = {
+                "_id": f"id-{position}",
+                "sort": [position * 3 + 10, position],
+            }
+            if kwargs.get("source", True):
+                hit["_source"] = {**_article_source(), "line": position * 3 + 10}
+            hits.append(hit)
+        return SimpleNamespace(body={**_search_body(total, hits), "pit_id": f"pit-{request_count}"})
+
+    es_client.search.side_effect = search
+
+
+@pytest.mark.parametrize("query", [None, " ч "])
+@pytest.mark.parametrize(
+    ("page", "page_size"),
+    [
+        (500, 20),
+        (501, 20),
+        (502, 20),
+        (1251, 20),
+        (1252, 20),
+        (10**9, 20),
+        (101, 100),
+        (334, 30),
+        (10001, 1),
+    ],
+)
+def test_numbered_pages_cross_result_window_without_gaps(
+    es_client: MagicMock, query: str | None, page: int, page_size: int
+) -> None:
+    total = 25_007
+    _configure_windowed_search(es_client, total)
+    repository = ArticleRepository(cast(Elasticsearch, es_client), index="dictionary")
+
+    result = repository.search_articles(query=query, page=page, page_size=page_size)
+
+    offset = (page - 1) * page_size
+    assert result.total == total
+    assert [item.id for item in result.items] == [
+        f"id-{position}" for position in range(offset, min(total, offset + page_size))
+    ]
+    expected_query = search_query(query) if query else {"match_all": {}}
+    for call in es_client.search.call_args_list:
+        assert call.kwargs["query"] == expected_query
+        assert call.kwargs["sort"] == ({"line": "asc"},)
+    if offset + page_size > MAX_ES_RESULT_WINDOW:
+        es_client.open_point_in_time.assert_called_once()
+        es_client.close_point_in_time.assert_called_once_with(
+            id=f"pit-{es_client.search.call_count}"
+        )
+        assert es_client.search.call_args_list[0].kwargs["source"] is False
+        if result.items:
+            assert es_client.search.call_args.kwargs["source"] is True
+        if offset >= total:
+            assert es_client.search.call_count == 1
+    else:
+        es_client.open_point_in_time.assert_not_called()
+        es_client.close_point_in_time.assert_not_called()
+
+
+@pytest.mark.parametrize("failure", ["timeout", "cursor", "transport"])
+def test_deep_page_closes_snapshot_on_failure(es_client: MagicMock, failure: str) -> None:
+    es_client.open_point_in_time.return_value = SimpleNamespace(body={"id": "opened"})
+    body = {**_search_body(20_000, [{"sort": [10, 0]}]), "pit_id": "refreshed"}
+    if failure == "timeout":
+        body["timed_out"] = True
+    elif failure == "cursor":
+        body = {**_search_body(20_000, [{}]), "pit_id": "refreshed"}
+    es_client.search.side_effect = [
+        SimpleNamespace(body=body),
+        EsConnectionError("connection lost"),
+    ]
+    repository = ArticleRepository(cast(Elasticsearch, es_client), index="dictionary")
+
+    with pytest.raises((RepositoryResponseError, EsConnectionError)):
+        repository.search_articles(query=None, page=501, page_size=20)
+
+    es_client.close_point_in_time.assert_called_once_with(id="refreshed")
+
+
+def test_snapshot_cleanup_failure_preserves_search_result(es_client: MagicMock) -> None:
+    _configure_windowed_search(es_client, 10_025)
+    es_client.close_point_in_time.side_effect = EsConnectionError("connection lost")
+    repository = ArticleRepository(cast(Elasticsearch, es_client), index="dictionary")
+
+    result = repository.search_articles(query=None, page=502, page_size=20)
+
+    assert len(result.items) == 5
+    assert result.total == 10_025
 
 
 def test_get_article_returns_stored_article(es_client: MagicMock) -> None:

@@ -9,9 +9,12 @@ from __future__ import annotations
 
 from enum import StrEnum
 from functools import lru_cache
+from typing import Final
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+MAX_ES_RESULT_WINDOW: Final = 10_000
 
 
 class LogLevel(StrEnum):
@@ -49,9 +52,10 @@ class Settings(BaseSettings):
     es_connect_timeout: float = Field(default=5.0, gt=0)
     # Default timeout (seconds) for Elasticsearch API operations.
     es_request_timeout: float = Field(default=30.0, gt=0)
+    es_pit_keep_alive_seconds: int = Field(default=60, gt=0)
 
     page_size: int = Field(default=20, ge=1)
-    max_page_size: int = Field(default=100, ge=1)
+    max_page_size: int = Field(default=100, ge=1, le=MAX_ES_RESULT_WINDOW)
 
     ingestion_batch_size: int = Field(default=1000, ge=1)
 

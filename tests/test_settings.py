@@ -15,6 +15,7 @@ def test_defaults() -> None:
     assert settings.es_index == "dictionary"
     assert settings.es_connect_timeout == 5.0
     assert settings.es_request_timeout == 30.0
+    assert settings.es_pit_keep_alive_seconds == 60
     assert settings.page_size == 20
     assert settings.max_page_size == 100
     assert settings.ingestion_batch_size == 1000
@@ -72,6 +73,13 @@ def test_elasticsearch_timeouts_must_be_positive() -> None:
         Settings(_env_file=None, es_connect_timeout=0)
     with pytest.raises(ValidationError):
         Settings(_env_file=None, es_request_timeout=-1)
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, es_pit_keep_alive_seconds=0)
+
+
+def test_page_size_cannot_exceed_elasticsearch_result_window() -> None:
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, max_page_size=10_001)
 
 
 def test_log_level_must_be_a_known_value() -> None:
