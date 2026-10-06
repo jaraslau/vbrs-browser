@@ -28,16 +28,36 @@ export function SearchForm({
 
   return (
     <form role="search" className="search-form" onSubmit={handleSubmit}>
-      <label htmlFor="search-input">Search</label>
+      <label className="sr-only" htmlFor="search-input">
+        Search
+      </label>
+      <svg
+        className="search-icon"
+        viewBox="0 0 24 24"
+        fill="none"
+        aria-hidden="true"
+      >
+        <circle cx="10.5" cy="10.5" r="6.5" />
+        <path d="m16 16 5 5" />
+      </svg>
       <input
         id="search-input"
         type="search"
         value={value}
-        placeholder="e.g. gadalinium"
+        placeholder="Search for a word…"
         autoComplete="off"
+        aria-describedby="search-hint"
         onChange={(event) => setValue(event.target.value)}
       />
-      <button type="submit">Search</button>
+      <button type="submit">
+        <span className="sr-only">Search</span>
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M4 12h16m-6-6 6 6-6 6" />
+        </svg>
+      </button>
+      <p id="search-hint" className="search-hint">
+        Search in Cyrillic or Latin. Leave blank to explore all entries.
+      </p>
     </form>
   );
 }

@@ -8,7 +8,7 @@ import { useArticle } from "../hooks/useArticles";
  * Article detail page: renders the complete dictionary article addressed by
  * the ``:articleId`` route parameter.
  */
-export function ArticlePage() {
+export function ArticlePage({ embedded = false }: { embedded?: boolean }) {
   const params = useParams<{ articleId: string }>();
   const articleId = params.articleId ?? "";
   const request = useArticle(articleId);
@@ -23,7 +23,7 @@ export function ArticlePage() {
         <section className="not-found">
           <h2>Article not found</h2>
           <p>{request.message}</p>
-          <Link to="/">Back to search</Link>
+          {!embedded && <Link to="/">Back to search</Link>}
         </section>
       );
     }
@@ -32,9 +32,11 @@ export function ArticlePage() {
 
   return (
     <>
-      <Link to="/" className="back-link">
-        ← Back to search
-      </Link>
+      {!embedded && (
+        <Link to="/" className="back-link">
+          ← Back to search
+        </Link>
+      )}
       <ArticleDetail article={request.article} />
     </>
   );
@@ -44,6 +46,7 @@ export function ArticlePage() {
 export function ArticleDetail({ article }: { article: Article }) {
   return (
     <article className="article-detail" aria-labelledby="article-headword">
+      <p className="eyebrow">Dictionary / Entry {article.line}</p>
       <h2 id="article-headword" className="article-word">
         {article.word}
       </h2>

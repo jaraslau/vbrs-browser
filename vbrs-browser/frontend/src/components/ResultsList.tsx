@@ -1,35 +1,41 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import type { Article } from "../api/types";
 import { firstDefinitionText } from "../lib/article";
 
-/**
- * A single search result linking to the full article.
- *
- * The headword owns the hierarchy; the latin transliteration and gender sit
- * beneath it on a tracked-out metadata line so results can be distinguished at
- * a glance.
- */
 function ResultItem({ article }: { article: Article }) {
+  const location = useLocation();
   const definition = firstDefinitionText(article);
   return (
     <li className="result-item">
-      <Link to={`/articles/${encodeURIComponent(article.id)}`} className="result-link">
-        <span className="result-word">{article.word}</span>
-        {(article.latin !== "" || article.gender !== null) && (
-          <span className="result-meta">
-            {article.latin !== "" && (
-              <span className="result-latin">{article.latin}</span>
-            )}
-            {article.gender !== null && (
-              <span className="result-gender">{article.gender}</span>
-            )}
-          </span>
-        )}
+      <Link
+        to={`/articles/${encodeURIComponent(article.id)}`}
+        state={{ backgroundLocation: location }}
+        className="result-link"
+      >
+        <span className="result-line" aria-hidden="true">
+          {String(article.line).padStart(5, "0")}
+        </span>
+        <span className="result-body">
+          <span className="result-word">{article.word}</span>
+          {(article.latin !== "" || article.gender !== null) && (
+            <span className="result-meta">
+              {article.latin !== "" && (
+                <span className="result-latin">{article.latin}</span>
+              )}
+              {article.gender !== null && (
+                <span className="result-gender">{article.gender}</span>
+              )}
+            </span>
+          )}
+          {definition !== null && (
+            <span className="result-definition">{definition}</span>
+          )}
+        </span>
+        <span className="result-arrow" aria-hidden="true">
+          ↗
+        </span>
       </Link>
-      {definition !== null && (
-        <p className="result-definition">{definition}</p>
-      )}
     </li>
   );
 }
