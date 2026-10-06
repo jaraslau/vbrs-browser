@@ -1,20 +1,50 @@
 name: vbrs-browser
 
-# Every value below comes from `.env` (copied from `.env.example`). Compose
-# reads `.env` automatically for interpolation and the backend/frontend
-# services receive the same file through `env_file`, so no value is restated
-# here. The single exception is ES_URL, which must address the in-network
-# service name rather than the host-published address stored in `.env`.
+# ---------------------------------------------------------------------------
+# Configuration
+#
+# - `.env` — read by Compose for interpolation only: published ports, the
+#   dictionary bind mount, and the values a service needs at runtime but
+#   that Compose itself owns (backend port, import directory), injected
+#   through `environment`.
+# - `.env.<service>` — each service receives only its own file via
+#   `env_file`, never the whole repository configuration.
+#
+# Network topology (web tier / data tier):
+#
+#   internet ──► frontend ──► backend ──► elasticsearch
+#                  (frontend net)   (backend net)
+#
+# - `frontend`: frontend and backend only, so nginx can proxy /api. This is
+#   the only network attached to a publicly published port.
+# - `backend`: backend and elasticsearch only. Isolation is by membership:
+#   the frontend is not attached to it, so nothing outside the data tier can
+#   reach Elasticsearch. The network must stay non-`internal` because Docker
+#   does not publish ports on internal networks and Elasticsearch is
+#   published on 127.0.0.1; if host access to Elasticsearch is not needed,
+#   mark it `internal` to cut the data plane off from every other network.
+#
+# Ports: the frontend is published on all interfaces (it is the public
+# entry point); backend and Elasticsearch are bound to 127.0.0.1 for local
+# development access only.
+# ---------------------------------------------------------------------------
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
 
 services:
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
-    environment:
-      discovery.type: "${ES_DISCOVERY_TYPE}"
-      xpack.security.enabled: "${ES_SECURITY_ENABLED}"
-      ES_JAVA_OPTS: "${ES_JAVA_OPTS}"
+    env_file:
+      - path: .env.elasticsearch
+        required: true
     ports:
-      - "${ES_PUBLIC_PORT}:9200"
+      - "127.0.0.1:${ES_PUBLIC_PORT}:9200"
+    networks:
+      - backend
     volumes:
       - elasticsearch_data:/usr/share/elasticsearch/data
     healthcheck:
@@ -23,6 +53,13 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    init: true
+    stop_grace_period: 30s
+    logging: *default-logging
     restart: unless-stopped
 
   backend:
@@ -30,21 +67,25 @@ services:
       context: .
       dockerfile: dockerfile.backend
     env_file:
-      - path: .env
+      - path: .env.backend
         required: true
     environment:
-      # Deployment-specific address of Elasticsearch inside the Compose
-      # network; the `.env` value addresses the host-published port.
       ES_URL: http://elasticsearch:9200
+      BACKEND_PORT: "${BACKEND_PORT}"
+      DICTIONARY_IMPORT_DIR: "${DICTIONARY_IMPORT_DIR}"
+    networks:
+      - frontend
+      - backend
     volumes:
       - "${DICTIONARY_SOURCE_DIR}:${DICTIONARY_IMPORT_DIR}:ro"
     ports:
-      - "${BACKEND_PORT}:${BACKEND_PORT}"
+      - "127.0.0.1:${BACKEND_PORT}:${BACKEND_PORT}"
     read_only: true
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    init: true
     depends_on:
       elasticsearch:
         condition: service_healthy
@@ -58,6 +99,7 @@ services:
       timeout: 10s
       retries: 10
       start_period: 10s
+    logging: *default-logging
     restart: unless-stopped
 
   frontend:
@@ -65,21 +107,31 @@ services:
       context: .
       dockerfile: dockerfile.frontend
     env_file:
-      - path: .env
+      - path: .env.frontend
         required: true
+    environment:
+      # Proxy target port for nginx, interpolated from `.env` so it cannot
+      # drift from the backend's published port.
+      BACKEND_PORT: "${BACKEND_PORT}"
+    networks:
+      - frontend
     ports:
       - "${FRONTEND_PORT}:8080"
-    # Not mounted read-only: the nginx entrypoint renders the configuration
-    # template into /etc/nginx/conf.d, a directory the image already grants to
-    # the unprivileged nginx user and to nothing else. Every other application
-    # file stays unwritable for that user, and /tmp is an explicit tmpfs
-    # because nginx keeps its pid and temporary files there.
+    read_only: true
+    # The nginx entrypoint renders the configuration template into
+    # /etc/nginx/conf.d and nginx keeps its pid and cache under /tmp and
+    # /var/cache/nginx; those paths are the only writable ones and are
+    # explicit tmpfs mounts owned by the unprivileged nginx user. Every
+    # other application file stays unwritable.
     tmpfs:
-      - /tmp
+      - /tmp:mode=1777
+      - /etc/nginx/conf.d:uid=101,gid=101,mode=0755
+      - /var/cache/nginx:uid=101,gid=101,mode=0755
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    init: true
     depends_on:
       backend:
         condition: service_healthy
@@ -89,7 +141,12 @@ services:
       timeout: 5s
       retries: 5
       start_period: 5s
+    logging: *default-logging
     restart: unless-stopped
+
+networks:
+  frontend:
+  backend:
 
 volumes:
   elasticsearch_data:

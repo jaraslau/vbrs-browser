@@ -19,7 +19,7 @@ search API, cancel superseded requests, and leave the submitted query unchanged.
 - **Backend** (`vbrs-browser/backend/`) — Python / FastAPI, importable as the
   top-level `backend` package. Fully typed; configuration is centralized in
   `backend/config/settings.py` via `pydantic-settings`.
-  - `backend/config/` — typed settings (env-driven, `.env` supported)
+  - `backend/config/` — typed settings (env-driven, `.env.backend` supported)
   - `backend/models/` — Pydantic models for dictionary data and API boundaries
   - `backend/routers/`, `backend/services/`, `backend/repositories/` — route/
     service/repository layers
@@ -27,7 +27,9 @@ search API, cancel superseded requests, and leave the submitted query unchanged.
 - **Frontend** (`vbrs-browser/frontend/`) — TypeScript / React (strict mode)
   built with Vite. API access is same-origin through `/api` (proxied by the
   Vite dev server and by nginx in production); no backend URLs are hardcoded
-  in components.
+  in components. The built site also serves `robots.txt` (crawl policy) and
+  `.well-known/security.txt` (vulnerability contact, RFC 9116), and the
+  nginx layer adds security headers (CSP, nosniff, frame denial, HSTS).
 - **Ingestion** (`vbrs-browser/scripts/`) — command-line importer
   (`python -m scripts.import_dictionary ...`), plus the container entrypoint.
 - **Search/database** — Elasticsearch single node via Docker Compose.
@@ -44,7 +46,10 @@ search API, cancel superseded requests, and leave the submitted query unchanged.
 ├── dockerfile.backend
 ├── dockerfile.frontend
 ├── docker-compose.yml
-├── .env.example             # copy to .env; single source of truth for config
+├── .env.example             # Compose wiring; copy to .env
+├── .env.backend.example     # backend settings; copy to .env.backend
+├── .env.frontend.example    # frontend settings; copy to .env.frontend
+├── .env.elasticsearch.example # Elasticsearch settings; copy to .env.elasticsearch
 └── pyproject.toml
 ```
 
@@ -56,26 +61,41 @@ search API, cancel superseded requests, and leave the submitted query unchanged.
 
 ## Environment configuration
 
-Copy `.env.example` to `.env` and adjust values as needed:
+Configuration is split per consumer so each service only ever receives the
+variables it needs:
+
+| File                  | Consumed by           | Contents                                                |
+| --------------------- | --------------------- | ------------------------------------------------------- |
+| `.env`                | Docker Compose only   | published ports, bind-mount paths, values Compose       |
+|                       |                       | injects into services (backend port, import directory)  |
+| `.env.backend`        | backend service       | application settings (pydantic-settings)                |
+| `.env.frontend`       | frontend service      | nginx upstream host for the `/api` proxy                |
+| `.env.elasticsearch`  | elasticsearch service | discovery mode, security flag, JVM heap options         |
+
+Every file has a matching `.env.<name>.example`. Copy them before the first
+run:
 
 ```bash
-cp .env.example .env
+for f in .env .env.backend .env.frontend .env.elasticsearch; do
+    cp "$f.example" "$f"
+done
 ```
 
-`.env` is the single source of truth for environment-variable values and is
-gitignored. Docker Compose consumes it both for interpolation and via
-`env_file`, so no value is restated in `docker-compose.yml`. Application
-settings flow through `vbrs-browser/backend/config/settings.py`.
-
-`.env.example` documents each variable's consumer. Most are application
-settings; a few exist only for Compose wiring (`FRONTEND_PORT`,
-`ES_PUBLIC_PORT`, `BACKEND_INTERNAL_URL`, `DICTIONARY_SOURCE_DIR`) and one for
-the container entrypoint (`DICTIONARY_IMPORT_DIR`).
+All `.env*` files are gitignored — never commit real secrets or
+environment-specific values. Docker Compose reads `.env` for interpolation
+and attaches each `.env.<service>` to its own service through `env_file`, so
+no value is restated in `docker-compose.yml`; the two values Compose owns
+(the backend port and the dictionary mount target) are injected into the
+backend through `environment`. Application settings flow through
+`vbrs-browser/backend/config/settings.py`, which reads `.env.backend` when
+the backend runs outside Compose. Each example file documents its variables.
 
 ## Running with Docker Compose
 
 ```bash
-cp .env.example .env
+for f in .env .env.backend .env.frontend .env.elasticsearch; do
+    cp "$f.example" "$f"
+done
 docker compose up --build -d
 ```
 
@@ -88,15 +108,27 @@ Services:
 | frontend       | http://localhost:8080       |
 | OpenAPI docs   | http://localhost:8000/docs  |
 
+Only the frontend is published on all interfaces; the backend and
+Elasticsearch ports are bound to `127.0.0.1` and are reachable from the
+Docker host only.
+
 All services define health checks; `backend` and `frontend` wait for their
 dependencies to become healthy. The backend starts even when Elasticsearch is
 unavailable and reports connectivity through the health endpoint.
 
-Both application containers run as dedicated unprivileged users, drop all
-Linux capabilities, and set `no-new-privileges`. Neither needs to bind a
-privileged port. The backend runs with a read-only root filesystem; the
-frontend keeps a writable path only where the nginx entrypoint renders its
-configuration, with `/tmp` mounted as an explicit tmpfs.
+Traffic is separated into two networks: `frontend` connects the frontend and
+the backend (the `/api` proxy hop), while `backend` connects only the backend
+and Elasticsearch. The frontend is not attached to the data network, so
+nothing outside the backend tier can reach Elasticsearch except its
+loopback-bound host port.
+
+All three containers run as dedicated unprivileged users, drop all Linux
+capabilities, set `no-new-privileges`, run with an init process, and the
+application containers use read-only root filesystems (the frontend keeps
+writable tmpfs mounts only where the nginx entrypoint renders its
+configuration and where nginx keeps its pid and cache). None needs to bind a
+privileged port. Container logs are capped at 10 MB with three rotations per
+service.
 
 ## Running frontend/backend separately (development)
 
@@ -106,6 +138,7 @@ Backend:
 python -m venv .venv
 . .venv/bin/activate
 pip install -e ".[dev]"
+cp .env.backend.example .env.backend   # optional; mirrors the defaults
 uvicorn backend.main:app --reload
 ```
 
@@ -125,7 +158,7 @@ Compose starts a single-node Elasticsearch 8 cluster with security disabled
 for local development and persists its data in the `elasticsearch_data`
 volume. The backend connects to `http://elasticsearch:9200` inside the
 Compose network (override via `ES_URL` in the backend service environment)
-and to `http://localhost:9200` when run locally (from `.env`).
+and to `http://localhost:9200` when run locally (from `.env.backend`).
 
 Explicit index mappings are defined in
 `vbrs-browser/backend/elasticsearch/mappings.py` and applied by the ingestion

@@ -5,19 +5,54 @@ server {
     listen 8080;
     server_name _;
 
+    server_tokens off;
+
     root /usr/share/nginx/html;
     index index.html;
 
-    # Forward API requests to the backend service inside the compose network.
-    # The upstream is substituted from the environment at container start so
-    # no backend address is hardcoded here (see BACKEND_INTERNAL_URL in
-    # .env.example).
+    # Response hardening. Declared once at server level: every `location`
+    # below uses no `add_header` of its own, so nginx inherits all of these
+    # for static files, proxied API responses, and error pages alike.
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), microphone=(), payment=(), usb=()" always;
+    add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; form-action 'self'" always;
+    # Meaningful only once TLS terminates upstream; harmless over plain HTTP.
+    add_header Strict-Transport-Security "max-age=31536000" always;
+
+    gzip on;
+    gzip_types text/plain text/css text/javascript application/javascript application/json image/svg+xml;
+    gzip_min_length 1024;
+
+    # Block every dotfile path (VCS metadata, backup files, ..). The single
+    # exception is /.well-known/, which serves security.txt.
+    location ~ /\.(?!well-known/) {
+        return 404;
+    }
+
+    # Forward API requests to the backend service on the compose network.
+    # The upstream host comes from .env.frontend, the port from .env (both
+    # substituted at container start), so no address is hardcoded here.
     location /api/ {
-        proxy_pass ${BACKEND_INTERNAL_URL};
+        proxy_pass http://${BACKEND_UPSTREAM_HOST}:${BACKEND_PORT};
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Vite emits content-hashed file names, so these can be cached forever.
+    # `expires` (unlike `add_header`) does not break header inheritance.
+    location /assets/ {
+        expires 1y;
+        try_files $uri =404;
+    }
+
+    # The shell of the app must always be revalidated: it names the hashed
+    # asset files and carries the CSP that applies to the document.
+    location = /index.html {
+        expires -1;
     }
 
     # Single-page application fallback.

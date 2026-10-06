@@ -1,0 +1,4 @@
+# Crawlers may index the site root only; every other path stays private.
+User-agent: *
+Allow: /$
+Disallow: /

@@ -26,14 +26,14 @@ class LogLevel(StrEnum):
 
 
 class Settings(BaseSettings):
-    """Typed application settings loaded from environment variables / ``.env``.
+    """Typed application settings loaded from environment variables / ``.env.backend``.
 
     Field names map to environment variables case-insensitively
     (``es_url`` <-> ``ES_URL``, ``cors_origins`` <-> ``CORS_ORIGINS``).
     """
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=".env.backend",
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
