@@ -1,0 +1,8 @@
+# For hosts that already terminate HTTPS. Import the dictionary in a release
+# step with elevated credentials; the long-running backend can then be read-only.
+services:
+  proxy:
+    profiles: [standalone-proxy]
+  backend:
+    environment:
+      DICTIONARY_IMPORT_DIR: ""

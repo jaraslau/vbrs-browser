@@ -1,3 +1,7 @@
+# Global budgets protect the backend without trusting client-supplied IP headers.
+limit_req_zone $server_name zone=api_requests:1m rate=${API_RATE_LIMIT};
+limit_conn_zone $server_name zone=api_connections:1m;
+
 server {
     # Unprivileged port: the container runs as a non-root user, so binding
     # below 1024 would require extra Linux capabilities. Compose maps this
@@ -35,6 +39,10 @@ server {
     # The upstream host comes from .env.frontend, the port from .env (both
     # substituted at container start), so no address is hardcoded here.
     location /api/ {
+        limit_req zone=api_requests burst=${API_RATE_BURST} nodelay;
+        limit_req_status 429;
+        limit_conn api_connections ${API_MAX_CONCURRENT};
+        limit_conn_status 429;
         proxy_pass http://${BACKEND_UPSTREAM_HOST}:${BACKEND_PORT};
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

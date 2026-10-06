@@ -190,7 +190,7 @@ services:
         - CMD
         - python
         - -c
-        - "import urllib.request; urllib.request.urlopen('http://localhost:${BACKEND_PORT}/api/v1/health', timeout=5)"
+        - "import json, urllib.request; body = json.load(urllib.request.urlopen('http://localhost:${BACKEND_PORT}/api/v1/health', timeout=5)); raise SystemExit(0 if body.get('elasticsearch') == 'connected' else 1)"
       interval: 10s
       timeout: 10s
       retries: 10

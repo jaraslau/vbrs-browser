@@ -154,6 +154,25 @@ capabilities are dropped; the proxy additionally retains
 `NET_BIND_SERVICE` so its unprivileged process can bind ports 80/443.
 Container logs are capped at 10 MB with three rotations per service.
 
+## Deployment behind an existing reverse proxy
+
+For deployment behind an existing host reverse proxy, use
+`docker compose -f docker-compose.yml -f docker-compose.host.yml` (or set
+`COMPOSE_FILE=docker-compose.yml:docker-compose.host.yml` in `.env`). This
+disables the bundled proxy and startup import. Set unused loopback ports in
+`.env` and route the public hostname to the frontend's loopback port. Import
+the dictionary in a separate release step before starting the backend, then
+give its Elasticsearch user only `read` and `view_index_metadata` on the
+dictionary index plus `monitor` for connectivity checks. Keep import/admin
+credentials out of the running backend. Preserve the dictionary source and
+Elasticsearch/certificate volumes for recovery; never use `down -v` on a live
+deployment.
+
+nginx limits API traffic using the shared budgets in `.env.frontend`:
+`API_RATE_LIMIT`, `API_RATE_BURST`, and `API_MAX_CONCURRENT`. Excess API
+requests receive 429; static assets are not limited. These are aggregate
+service limits, not per-IP quotas, so forwarded headers cannot bypass them.
+
 ## Running frontend/backend separately (development)
 
 Backend:
