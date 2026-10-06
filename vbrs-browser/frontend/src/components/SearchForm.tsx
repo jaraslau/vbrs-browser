@@ -4,25 +4,27 @@ import type { FormEvent } from "react";
 /**
  * The search input and submit button.
  *
- * Submit-based search by design: the query is only sent to the API when the
- * form is submitted, never on every keystroke. The input is kept in sync
- * with the URL-derived query so browser navigation updates it too.
+ * Submission updates the full results; preview changes leave the URL alone.
  */
 export function SearchForm({
   defaultQuery,
   onSearch,
+  onPreview,
 }: {
   defaultQuery: string;
   onSearch: (query: string) => void;
+  onPreview?: (query: string | null) => void;
 }) {
   const [value, setValue] = useState(defaultQuery);
 
   useEffect(() => {
     setValue(defaultQuery);
-  }, [defaultQuery]);
+    onPreview?.(null);
+  }, [defaultQuery, onPreview]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    onPreview?.(null);
     onSearch(value.trim());
   };
 
@@ -47,7 +49,11 @@ export function SearchForm({
         placeholder="Search for a word…"
         autoComplete="off"
         aria-describedby="search-hint"
-        onChange={(event) => setValue(event.target.value)}
+        onFocus={() => onPreview?.(value.trim())}
+        onChange={(event) => {
+          setValue(event.target.value);
+          onPreview?.(event.target.value.trim());
+        }}
       />
       <button type="submit">
         <span className="sr-only">Search</span>

@@ -65,10 +65,9 @@ describe("SearchPage", () => {
 
     renderSearchPage("/?q=ґадалІн&page=1");
 
-    expect(await screen.findByRole("link", { name: /ґадалІн/ })).toHaveAttribute(
-      "href",
-      "/articles/doc-1",
-    );
+    expect(
+      await screen.findByRole("link", { name: /ґадалІн/ }),
+    ).toHaveAttribute("href", "/articles/doc-1");
     expect(screen.getByText("latinus")).toBeInTheDocument();
     expect(screen.getByText("м")).toBeInTheDocument();
     expect(screen.getByText("meaning")).toBeInTheDocument();
@@ -92,13 +91,15 @@ describe("SearchPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows a summary and does not search on every keystroke", async () => {
+  it("previews typing while updating the full results only on submit", async () => {
     const user = userEvent.setup();
     mockedSearchArticles.mockResolvedValue(listing([], 0));
 
     renderSearchPage("/");
 
-    expect(await screen.findByText("No articles in the dictionary yet.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("No articles in the dictionary yet."),
+    ).toBeInTheDocument();
     expect(screen.getByText("0 articles")).toBeInTheDocument();
 
     const input = screen.getByLabelText("Search");
@@ -107,8 +108,12 @@ describe("SearchPage", () => {
     await user.type(input, "gadalin");
     expect(input).toHaveValue("gadalin");
 
-    // Typing alone must not fire a request; only the submit does.
-    expect(mockedSearchArticles).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("No matching words.")).toBeInTheDocument();
+    expect(
+      mockedSearchArticles.mock.calls.filter(
+        ([params]) => params?.pageSize === undefined,
+      ),
+    ).toHaveLength(1);
 
     await user.click(searchButton);
 
@@ -119,9 +124,13 @@ describe("SearchPage", () => {
       );
     });
     expect(
-      await screen.findByText('No articles match "gadalin". Try a different search.'),
+      await screen.findByText(
+        'No articles match "gadalin". Try a different search.',
+      ),
     ).toBeInTheDocument();
-    expect(screen.getByText('0 articles found for "gadalin"')).toBeInTheDocument();
+    expect(
+      screen.getByText('0 articles found for "gadalin"'),
+    ).toBeInTheDocument();
   });
 
   it("keeps the query when paginating and resets to page 1 on a new search", async () => {
@@ -135,7 +144,9 @@ describe("SearchPage", () => {
 
     renderSearchPage("/?q=gadalin&page=1");
 
-    expect(await screen.findByRole("button", { name: "2" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "2" }),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Next" }));
 
@@ -168,23 +179,26 @@ describe("SearchPage", () => {
   });
 
   it("disables pagination controls at the ends of the result set", async () => {
-    mockedSearchArticles.mockResolvedValue(listing(
-      [makeArticle("doc-1", "word-1")],
-      1,
-    ));
+    mockedSearchArticles.mockResolvedValue(
+      listing([makeArticle("doc-1", "word-1")], 1),
+    );
 
     renderSearchPage("/?q=word&page=1");
 
     await screen.findByRole("link", { name: /word-1/ });
 
     // A single result fits on one page: no pagination is rendered.
-    expect(screen.queryByRole("navigation", { name: "Pagination" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("navigation", { name: "Pagination" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows an error message and retries the failed request", async () => {
     const user = userEvent.setup();
     mockedSearchArticles
-      .mockRejectedValueOnce(new ApiError(503, "The search backend is temporarily unavailable."))
+      .mockRejectedValueOnce(
+        new ApiError(503, "The search backend is temporarily unavailable."),
+      )
       .mockResolvedValueOnce(listing([makeArticle("doc-1", "ґадалІн")], 1));
 
     renderSearchPage("/?q=ґадалІн");
@@ -196,7 +210,9 @@ describe("SearchPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Try again" }));
 
-    expect(await screen.findByRole("link", { name: /ґадалІн/ })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: /ґадалІн/ }),
+    ).toBeInTheDocument();
     expect(mockedSearchArticles).toHaveBeenCalledTimes(2);
   });
 });

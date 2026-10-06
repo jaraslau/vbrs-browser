@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from backend.elasticsearch.queries import (
     DEFINITION_BOOST,
     LATIN_BOOST,
+    LATIN_PREFIX_BOOST,
     RAW_BOOST,
     WORD_BOOST,
     WORD_PREFIX_BOOST,
@@ -49,6 +50,18 @@ def test_search_query_boosts_follow_relevance_order() -> None:
     # word/latin must outrank definition text and the raw line
     assert WORD_BOOST > LATIN_BOOST > DEFINITION_BOOST > RAW_BOOST
     assert WORD_PREFIX_BOOST > LATIN_BOOST
+    assert WORD_PREFIX_BOOST > LATIN_BOOST + LATIN_PREFIX_BOOST
+
+
+def test_latin_prefixes_match_before_the_word_is_complete() -> None:
+    body = search_query("gada")
+    bool_mapping = body["bool"]
+    assert isinstance(bool_mapping, Mapping)
+    clauses = bool_mapping["should"]
+    assert isinstance(clauses, list)
+    assert {
+        "match_phrase_prefix": {"latin": {"query": "gada", "boost": LATIN_PREFIX_BOOST}}
+    } in clauses
 
 
 def test_word_clauses_are_included() -> None:

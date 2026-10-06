@@ -22,6 +22,8 @@ export interface ApiConfig {
 
 const DEFAULT_API_BASE_URL = "/api/v1";
 
+export const LIVE_SEARCH_OPTIONS = { pageSize: 6, debounceMs: 180 } as const;
+
 function stripTrailingSlashes(value: string): string {
   return value.replace(/\/+$/, "");
 }

@@ -3,9 +3,10 @@
  *
  * The search query and page number live in the URL query string
  * (``?q=...&page=...``) so results are bookmarkable and browser navigation
- * works naturally. The form is submit-based — no request fires per keystroke.
+ * works naturally. Live previews do not change the submitted query.
  */
 
+import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { parsePositiveInt } from "../lib/query";
@@ -17,6 +18,7 @@ import {
 import { Pagination } from "../components/Pagination";
 import { ResultsList } from "../components/ResultsList";
 import { SearchForm } from "../components/SearchForm";
+import { LiveSearchResults } from "../components/LiveSearchResults";
 import { useArticleSearch } from "../hooks/useArticles";
 
 /** "1 article" for one, "N articles" otherwise. */
@@ -34,6 +36,7 @@ function resultsSummary(total: number, query: string): string {
 
 export function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [previewQuery, setPreviewQuery] = useState<string | null>(null);
   const query = searchParams.get("q") ?? "";
   const page = parsePositiveInt(searchParams.get("page"), 1);
   const search = useArticleSearch(query, page);
@@ -67,7 +70,49 @@ export function SearchPage() {
           Belarusian-Russian <br />
           <em>glacier.</em>
         </h2>
-        <SearchForm defaultQuery={query} onSearch={handleSearch} />
+        <div
+          className="search-area"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              event.currentTarget.querySelector("input")?.focus();
+              setPreviewQuery(null);
+            }
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              const links = Array.from(
+                event.currentTarget.querySelectorAll<HTMLAnchorElement>(
+                  ".live-search-list a",
+                ),
+              );
+              if (links.length === 0) return;
+              event.preventDefault();
+              const index = links.findIndex(
+                (link) => link === document.activeElement,
+              );
+              if (event.key === "ArrowUp" && index === 0) {
+                event.currentTarget.querySelector("input")?.focus();
+              } else {
+                const next =
+                  index < 0
+                    ? event.key === "ArrowDown"
+                      ? 0
+                      : links.length - 1
+                    : Math.min(
+                        index + (event.key === "ArrowDown" ? 1 : -1),
+                        links.length - 1,
+                      );
+                links[next]?.focus();
+              }
+            }
+          }}
+        >
+          <SearchForm
+            defaultQuery={query}
+            onSearch={handleSearch}
+            onPreview={setPreviewQuery}
+          />
+          {previewQuery && <LiveSearchResults query={previewQuery} />}
+        </div>
       </div>
 
       <section
@@ -75,17 +120,11 @@ export function SearchPage() {
         id="dictionary-index"
         aria-labelledby="index-heading"
       >
-        <aside className="index-aside">
-          <p className="eyebrow">BE → RU</p>
-          <h3 id="index-heading">
-            Dictionary <br />
-            index
-          </h3>
-          <div className="depth-scale" aria-hidden="true" />
-        </aside>
         <div className="index-content">
           <div className="index-heading">
-            <h4>{query === "" ? "Dictionary entries" : "Search results"}</h4>
+            <h3 id="index-heading">
+              {query === "" ? "Dictionary entries" : "Search results"}
+            </h3>
             <span className="eyebrow">BE / RU</span>
           </div>
 

@@ -3,6 +3,7 @@ import type { Location } from "react-router-dom";
 
 import favicon from "./assets/favicon.webp";
 import { ArticleModal } from "./components/ArticleModal";
+import { PageScrollbar } from "./components/PageScrollbar";
 import { ArticlePage } from "./pages/ArticlePage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { SearchPage } from "./pages/SearchPage";
@@ -13,6 +14,7 @@ function Layout() {
   return (
     <div className={`app${pathname === "/" ? "" : " app--reading"}`}>
       <div className="polar-backdrop" aria-hidden="true" />
+      <PageScrollbar />
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>

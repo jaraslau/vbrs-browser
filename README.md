@@ -9,8 +9,10 @@ Elasticsearch; the web application searches and displays the articles.
 The repository layout, configuration, container definitions, ingestion
 pipeline, and tooling are in place. The FastAPI backend exposes the health,
 article search, and article detail endpoints under `/api/v1`; the React/TypeScript
-frontend implements the search page (URL-synced, submit-based search with
-pagination) and the article detail route on top of them.
+frontend implements URL-synced search with pagination, debounced live word
+previews, and article modals that preserve the search underneath. Direct
+article URLs also render as standalone pages. Live previews reuse the HTTP
+search API, cancel superseded requests, and leave the submitted query unchanged.
 
 ## Architecture
 

@@ -50,6 +50,45 @@ function emptyListing(): ArticleListResponse {
 }
 
 describe("App", () => {
+  it("opens a live match without losing the unsubmitted draft", async () => {
+    const user = userEvent.setup();
+    mockedSearchArticles.mockImplementation(async (params) =>
+      params?.pageSize === undefined
+        ? emptyListing()
+        : { items: [article], total: 1, page: 1, page_size: params.pageSize },
+    );
+    mockedGetArticle.mockResolvedValue(article);
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    await screen.findByText("No articles in the dictionary yet.");
+    await user.type(screen.getByRole("searchbox"), "gad");
+    const suggestions = await screen.findByRole("list", {
+      name: "Suggested words",
+    });
+    await user.click(
+      within(suggestions).getByRole("link", { name: "ґадалІн" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      await within(dialog).findByRole("heading", { name: "ґадалІн" }),
+    ).toBeInTheDocument();
+    await user.click(
+      within(dialog).getByRole("button", { name: "Close article" }),
+    );
+    expect(screen.getByRole("searchbox")).toHaveValue("gad");
+    expect(
+      screen.getByRole("list", { name: "Suggested words" }),
+    ).toBeInTheDocument();
+    expect(
+      mockedSearchArticles.mock.calls.filter(
+        ([params]) => params?.pageSize === undefined,
+      ),
+    ).toHaveLength(1);
+  });
+
   it.each(["button", "escape", "backdrop"])(
     "opens articles over the current results and restores them on %s dismissal",
     async (method) => {

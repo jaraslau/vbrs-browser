@@ -23,6 +23,9 @@ WORD_PREFIX_BOOST: Final = 4.0
 LATIN_BOOST: Final = 3.0
 """Boost for a match against the latin transliteration."""
 
+LATIN_PREFIX_BOOST: Final = 0.5
+"""Keep the combined Latin match boosts below the headword prefix boost."""
+
 DEFINITION_BOOST: Final = 2.0
 """Boost for a match against definition text."""
 
@@ -44,6 +47,7 @@ def search_query(query: str) -> Mapping[str, object]:
                 _match("word", query, WORD_BOOST),
                 {"match_phrase_prefix": {"word": {"query": query, "boost": WORD_PREFIX_BOOST}}},
                 _match("latin", query, LATIN_BOOST),
+                {"match_phrase_prefix": {"latin": {"query": query, "boost": LATIN_PREFIX_BOOST}}},
                 _match("definitions.text", query, DEFINITION_BOOST),
                 _match("raw", query, RAW_BOOST),
             ],

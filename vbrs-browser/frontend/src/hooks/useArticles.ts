@@ -38,36 +38,50 @@ function isAbortError(error: unknown): boolean {
 export function useArticleSearch(
   query: string,
   page: number,
+  { pageSize, debounceMs = 0 }: { pageSize?: number; debounceMs?: number } = {},
 ): SearchState & { retry: () => void } {
   const [retryKey, setRetryKey] = useState(0);
-  const [state, setState] = useState<SearchState>({ status: "loading" });
+  const [state, setState] = useState<SearchState & { query: string }>({
+    status: "loading",
+    query,
+  });
 
   useEffect(() => {
     const controller = new AbortController();
     let stale = false;
 
-    setState({ status: "loading" });
-    searchArticles({ q: query, page }, controller.signal)
-      .then((data) => {
-        if (!stale) {
-          setState({ status: "success", data });
-        }
-      })
-      .catch((error: unknown) => {
-        if (stale || isAbortError(error)) {
-          return;
-        }
-        setState({ status: "error", message: toErrorMessage(error) });
-      });
+    setState({ status: "loading", query });
+    const load = () =>
+      searchArticles(
+        { q: query, page, ...(pageSize === undefined ? {} : { pageSize }) },
+        controller.signal,
+      )
+        .then((data) => {
+          if (!stale) {
+            setState({ status: "success", data, query });
+          }
+        })
+        .catch((error: unknown) => {
+          if (stale || isAbortError(error)) {
+            return;
+          }
+          setState({ status: "error", message: toErrorMessage(error), query });
+        });
+
+    const timer = debounceMs > 0 ? setTimeout(load, debounceMs) : undefined;
+    if (debounceMs === 0) {
+      void load();
+    }
 
     return () => {
       stale = true;
+      clearTimeout(timer);
       controller.abort();
     };
-  }, [query, page, retryKey]);
+  }, [query, page, pageSize, debounceMs, retryKey]);
 
   return {
-    ...state,
+    ...(state.query === query ? state : { status: "loading" as const }),
     retry: () => setRetryKey((key) => key + 1),
   };
 }
