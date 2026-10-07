@@ -1,5 +1,10 @@
 # vbrs-browser
 
+Searchable cold storage for my belarusian-russian word archive (VBRS).
+Written up partially via my oc-orchestrator.
+
+Auto-generated readme below:
+
 A read-only dictionary browser: search dictionary articles and view individual
 entries. Dictionary data is supplied as JSON files and imported into
 Elasticsearch; the web application searches and displays the articles.
