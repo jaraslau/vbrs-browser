@@ -15,6 +15,20 @@ export function ArticleModal() {
     return () => {
       dialog?.close();
       if (previousFocus instanceof HTMLElement) {
+        // Returning focus after the modal closes is a navigation gesture,
+        // not a keyboard traversal, so suppress the focus-visible ring that
+        // would otherwise frame the full-width result row while focus rests
+        // on it. Focus is still returned for keyboard and screen-reader
+        // continuity; the marker is cleared on blur so real keyboard
+        // traversal from there on shows normal focus rings.
+        previousFocus.setAttribute("data-focus-restored", "");
+        previousFocus.addEventListener(
+          "blur",
+          () => {
+            previousFocus.removeAttribute("data-focus-restored");
+          },
+          { once: true },
+        );
         previousFocus.focus({ preventScroll: true });
       }
     };

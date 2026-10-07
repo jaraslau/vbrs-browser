@@ -65,6 +65,9 @@ button {
   outline: 2px solid var(--glacier);
   outline-offset: 5px;
 }
+[data-focus-restored]:focus-visible {
+  outline: none;
+}
 
 .sr-only {
   position: absolute;
@@ -930,6 +933,9 @@ body:has(.article-modal[open]) {
     min-height: 1.5rem;
     padding-block: 0.125rem;
   }
+  .live-search-arrow {
+    display: none;
+  }
   .live-search-word {
     overflow: hidden;
     font-size: 1rem;
@@ -999,8 +1005,11 @@ body:has(.article-modal[open]) {
     width: 16px;
   }
   .result-link {
-    grid-template-columns: 2.8rem minmax(0, 1fr) 1rem;
+    grid-template-columns: 2.8rem minmax(0, 1fr);
     gap: 0.5rem;
+  }
+  .result-arrow {
+    display: none;
   }
   .result-word {
     font-size: 1.5rem;
