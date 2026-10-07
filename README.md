@@ -9,16 +9,6 @@ A read-only dictionary browser: search dictionary articles and view individual
 entries. Dictionary data is supplied as JSON files and imported into
 Elasticsearch; the web application searches and displays the articles.
 
-## Status
-
-The repository layout, configuration, container definitions, ingestion
-pipeline, and tooling are in place. The FastAPI backend exposes the health,
-article search, and article detail endpoints under `/api/v1`; the React/TypeScript
-frontend implements URL-synced search with pagination, debounced live word
-previews, and article modals that preserve the search underneath. Direct
-article URLs also render as standalone pages. Live previews reuse the HTTP
-search API, cancel superseded requests, and leave the submitted query unchanged.
-
 ## Architecture
 
 - **Backend** (`vbrs-browser/backend/`) — Python / FastAPI, importable as the
@@ -303,40 +293,3 @@ Behavior notes:
   `elasticsearch` field to tell a degraded service from a dead process.
 
 Interactive OpenAPI documentation is enabled for development.
-
-## Tests
-
-Backend:
-
-```bash
-pip install -e ".[dev]"
-pytest
-```
-
-Frontend:
-
-```bash
-cd vbrs-browser/frontend
-npm test
-```
-
-## Linters and type checks
-
-Backend:
-
-```bash
-ruff check .
-mypy
-```
-
-Frontend:
-
-```bash
-cd vbrs-browser/frontend
-npm run typecheck
-npm run lint
-```
-
-## License
-
-MIT — see `license`.
