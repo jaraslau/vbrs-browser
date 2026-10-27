@@ -91,28 +91,6 @@ for f in .env .env.backend .env.frontend .env.elasticsearch .env.proxy; do
 done
 ```
 
-All `.env*` files are gitignored — never commit real secrets or
-environment-specific values. Docker Compose reads `.env` for interpolation
-and attaches each `.env.<service>` to its own service through `env_file`, so
-the settings a service needs live in its own file rather than being restated
-in `docker-compose.yml`. The values only Compose can know (the backend port,
-the dictionary mount target, and the cluster endpoint/TLS wiring that couple
-two or more services) are injected into the backend through `environment`.
-Application settings flow through
-`vbrs-browser/backend/config/settings.py`, which reads `.env.backend` when
-the backend runs outside Compose. Each example file documents its variables.
-
-## Running with Docker Compose
-
-```bash
-for f in .env .env.backend .env.frontend .env.elasticsearch .env.proxy; do
-    cp "$f.example" "$f"
-done
-# set a strong ELASTIC_PASSWORD in .env.elasticsearch and the matching
-# ES_PASSWORD in .env.backend; keep PUBLIC_DOMAIN=localhost for a local test
-docker compose up --build -d
-```
-
 Services:
 
 | Service        | URL                                   |
@@ -167,28 +145,6 @@ nginx limits API traffic using the shared budgets in `.env.frontend`:
 `API_RATE_LIMIT`, `API_RATE_BURST`, and `API_MAX_CONCURRENT`. Excess API
 requests receive 429; static assets are not limited. These are aggregate
 service limits, not per-IP quotas, so forwarded headers cannot bypass them.
-
-## Running frontend/backend separately (development)
-
-Backend:
-
-```bash
-python -m venv .venv
-. .venv/bin/activate
-pip install -e ".[dev]"
-cp .env.backend.example .env.backend   # optional; mirrors the defaults
-uvicorn backend.main:app --reload
-```
-
-Frontend (Vite dev server proxies `/api` to the backend at
-`VITE_BACKEND_URL`, default `http://localhost:8000`):
-
-```bash
-cd vbrs-browser/frontend
-cp .env.example .env   # optional
-npm install
-npm run dev            # http://localhost:5173
-```
 
 ## Elasticsearch
 
