@@ -159,7 +159,6 @@ button {
 }
 .app-tagline,
 .eyebrow,
-.language-pair,
 .app-footer {
   font-family: var(--mono);
   font-size: 0.65rem;
@@ -172,12 +171,19 @@ button {
   border-left: 1px solid rgb(21 47 59 / 24%);
   color: var(--ink-muted);
 }
-.language-pair {
+.github-link {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
   margin-left: auto;
-  white-space: nowrap;
 }
-.language-pair span {
-  padding-inline: 0.65rem;
+.github-link svg {
+  width: 24px;
+  height: 24px;
+}
+.github-link:hover {
+  color: var(--ink-muted);
 }
 .app-main {
   flex: 1;
@@ -475,7 +481,7 @@ button {
 }
 .result-link {
   display: grid;
-  grid-template-columns: 3.5rem minmax(0, 1fr) 1.5rem;
+  grid-template-columns: 3.5rem minmax(0, 1fr);
   gap: 0.8rem;
   align-items: baseline;
   padding: 1.35rem 0.5rem 1.4rem 0;
@@ -524,23 +530,11 @@ button {
   font-size: 0.82rem;
   line-height: 1.75;
 }
-.result-arrow {
-  justify-self: end;
-  font-size: 1.1rem;
-  color: var(--muted);
-  transition:
-    color 180ms ease,
-    transform 180ms ease;
-}
 .result-link:hover {
   background: rgb(184 216 222 / 3%);
 }
-.result-link:hover .result-word,
-.result-link:hover .result-arrow {
+.result-link:hover .result-word {
   color: var(--glacier);
-}
-.result-link:hover .result-arrow {
-  transform: translate(2px, -2px);
 }
 
 .status-message,
@@ -963,12 +957,6 @@ body:has(.article-modal[open]) {
   .app-tagline {
     display: none;
   }
-  .language-pair {
-    font-size: 0.6rem;
-  }
-  .language-pair span {
-    padding-inline: 0.2rem;
-  }
   .polar-backdrop {
     height: 700px;
     background-position:
@@ -1007,9 +995,6 @@ body:has(.article-modal[open]) {
   .result-link {
     grid-template-columns: 2.8rem minmax(0, 1fr);
     gap: 0.5rem;
-  }
-  .result-arrow {
-    display: none;
   }
   .result-word {
     font-size: 1.5rem;

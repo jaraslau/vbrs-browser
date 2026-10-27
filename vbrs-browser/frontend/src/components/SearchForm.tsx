@@ -55,12 +55,14 @@ export function SearchForm({
           onPreview?.(event.target.value.trim());
         }}
       />
-      <button type="submit">
-        <span className="sr-only">Search</span>
-        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M4 12h16m-6-6 6 6-6 6" />
-        </svg>
-      </button>
+      {value.trim() !== "" && (
+        <button type="submit">
+          <span className="sr-only">Search</span>
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4 12h16m-6-6 6 6-6 6" />
+          </svg>
+        </button>
+      )}
       <p id="search-hint" className="search-hint">
         Search in Cyrillic or Latin. Leave blank to explore all entries.
       </p>

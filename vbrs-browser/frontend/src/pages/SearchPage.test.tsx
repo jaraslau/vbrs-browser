@@ -103,7 +103,6 @@ describe("SearchPage", () => {
     expect(screen.getByText("0 articles")).toBeInTheDocument();
 
     const input = screen.getByLabelText("Search");
-    const searchButton = screen.getByRole("button", { name: "Search" });
 
     await user.type(input, "gadalin");
     expect(input).toHaveValue("gadalin");
@@ -115,7 +114,7 @@ describe("SearchPage", () => {
       ),
     ).toHaveLength(1);
 
-    await user.click(searchButton);
+    await user.click(screen.getByRole("button", { name: "Search" }));
 
     await waitFor(() => {
       expect(mockedSearchArticles).toHaveBeenLastCalledWith(

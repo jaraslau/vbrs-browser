@@ -32,9 +32,6 @@ function ResultItem({ article }: { article: Article }) {
             <span className="result-definition">{definition}</span>
           )}
         </span>
-        <span className="result-arrow" aria-hidden="true">
-          ↗
-        </span>
       </Link>
     </li>
   );
