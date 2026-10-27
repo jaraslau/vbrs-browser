@@ -48,9 +48,6 @@ export function LiveSearchResults({ query }: { query: string }) {
                     {String(index + 1).padStart(2, "0")}
                   </span>
                   <span className="live-search-word">{article.word}</span>
-                  <span className="live-search-arrow" aria-hidden="true">
-                    ↗
-                  </span>
                 </Link>
               </li>
             ))}
