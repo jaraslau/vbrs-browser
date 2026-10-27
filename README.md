@@ -30,6 +30,11 @@ Elasticsearch; the web application searches and displays the articles.
   in components. The built site also serves `robots.txt` (crawl policy) and
   `.well-known/security.txt` (vulnerability contact, RFC 9116), and the
   nginx layer adds security headers (CSP, nosniff, frame denial, HSTS).
+  Search results are cached in memory for the active query and page size:
+  page 1 is retained once visited, alongside the two most recently accessed
+  other pages. Older pages are evicted; changing the query or page size clears
+  the cache. Live suggestions and article-detail requests bypass it. A browser
+  reload clears cached results so the next request retrieves fresh data.
 - **Ingestion** (`vbrs-browser/scripts/`) — command-line importer
   (`python -m scripts.import_dictionary ...`), the container entrypoint, and
   the `es_certs_init.sh` one-shot that bootstraps Elasticsearch's TLS

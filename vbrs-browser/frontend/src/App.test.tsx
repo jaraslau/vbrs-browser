@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getArticle, searchArticles } from "./api/articles";
+import { searchResultsCache } from "./api/searchResultsCache";
 import type { Article, ArticleListResponse } from "./api/types";
 
 import App from "./App";
@@ -43,7 +44,10 @@ beforeAll(() => {
   };
 });
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  searchResultsCache.clear();
+});
 
 function emptyListing(): ArticleListResponse {
   return { items: [], page: 1, page_size: 20, total: 0 };
@@ -136,6 +140,13 @@ describe("App", () => {
         "aria-current",
         "page",
       );
+      expect(mockedSearchArticles).toHaveBeenCalledTimes(1);
+
+      await user.click(screen.getByRole("link", { name: /ґадалІн/ }));
+      await within(await screen.findByRole("dialog")).findByRole("heading", {
+        name: "ґадалІн",
+      });
+      expect(mockedGetArticle).toHaveBeenCalledTimes(2);
       expect(mockedSearchArticles).toHaveBeenCalledTimes(1);
     },
   );

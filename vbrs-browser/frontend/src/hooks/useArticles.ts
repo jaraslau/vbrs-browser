@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 
 import { searchArticles, getArticle } from "../api/articles";
 import { ApiError, toErrorMessage } from "../api/client";
+import { searchResultsCache } from "../api/searchResultsCache";
 import type { Article, ArticleListResponse } from "../api/types";
 
 /** Discriminated state of an article search request. */
@@ -38,19 +39,33 @@ function isAbortError(error: unknown): boolean {
 export function useArticleSearch(
   query: string,
   page: number,
-  { pageSize, debounceMs = 0 }: { pageSize?: number; debounceMs?: number } = {},
+  {
+    pageSize,
+    debounceMs = 0,
+    cacheResults = false,
+  }: { pageSize?: number; debounceMs?: number; cacheResults?: boolean } = {},
 ): SearchState & { retry: () => void } {
+  const scope = JSON.stringify([query.trim(), pageSize ?? null]);
+  const requestKey = JSON.stringify([scope, page]);
   const [retryKey, setRetryKey] = useState(0);
-  const [state, setState] = useState<SearchState & { query: string }>({
+  const [state, setState] = useState<SearchState & { requestKey: string }>({
     status: "loading",
-    query,
+    requestKey,
   });
 
   useEffect(() => {
+    if (cacheResults) {
+      const cached = searchResultsCache.get(scope, page);
+      if (cached !== undefined) {
+        setState({ status: "success", data: cached, requestKey });
+        return;
+      }
+    }
+
     const controller = new AbortController();
     let stale = false;
 
-    setState({ status: "loading", query });
+    setState({ status: "loading", requestKey });
     const load = () =>
       searchArticles(
         { q: query, page, ...(pageSize === undefined ? {} : { pageSize }) },
@@ -58,14 +73,19 @@ export function useArticleSearch(
       )
         .then((data) => {
           if (!stale) {
-            setState({ status: "success", data, query });
+            if (cacheResults) searchResultsCache.set(scope, page, data);
+            setState({ status: "success", data, requestKey });
           }
         })
         .catch((error: unknown) => {
           if (stale || isAbortError(error)) {
             return;
           }
-          setState({ status: "error", message: toErrorMessage(error), query });
+          setState({
+            status: "error",
+            message: toErrorMessage(error),
+            requestKey,
+          });
         });
 
     const timer = debounceMs > 0 ? setTimeout(load, debounceMs) : undefined;
@@ -78,11 +98,14 @@ export function useArticleSearch(
       clearTimeout(timer);
       controller.abort();
     };
-  }, [query, page, pageSize, debounceMs, retryKey]);
+  }, [query, page, pageSize, debounceMs, retryKey, cacheResults, scope, requestKey]);
 
   return {
-    ...(state.query === query ? state : { status: "loading" as const }),
-    retry: () => setRetryKey((key) => key + 1),
+    ...(state.requestKey === requestKey ? state : { status: "loading" as const }),
+    retry: () => {
+      if (cacheResults) searchResultsCache.delete(scope, page);
+      setRetryKey((key) => key + 1);
+    },
   };
 }
 

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { searchArticles } from "../api/articles";
 import { ApiError } from "../api/client";
+import { searchResultsCache } from "../api/searchResultsCache";
 import type { Article, ArticleListResponse } from "../api/types";
 
 import { SearchPage } from "./SearchPage";
@@ -57,6 +58,7 @@ function renderSearchPage(initialEntry = "/") {
 describe("SearchPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    searchResultsCache.clear();
   });
   it("renders results driven by the query in the URL", async () => {
     mockedSearchArticles.mockResolvedValue(
@@ -170,11 +172,16 @@ describe("SearchPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Search" }));
     await waitFor(() => {
-      expect(mockedSearchArticles).toHaveBeenLastCalledWith(
-        { q: "gadalin", page: 1 },
-        expect.anything(),
+      expect(screen.getByRole("button", { name: "1" })).toHaveAttribute(
+        "aria-current",
+        "page",
       );
     });
+    expect(
+      mockedSearchArticles.mock.calls.filter(
+        ([params]) => params?.pageSize === undefined,
+      ),
+    ).toHaveLength(3);
   });
 
   it("disables pagination controls at the ends of the result set", async () => {

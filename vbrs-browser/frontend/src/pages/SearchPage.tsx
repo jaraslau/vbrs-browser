@@ -39,7 +39,7 @@ export function SearchPage() {
   const [previewQuery, setPreviewQuery] = useState<string | null>(null);
   const query = searchParams.get("q") ?? "";
   const page = parsePositiveInt(searchParams.get("page"), 1);
-  const search = useArticleSearch(query, page);
+  const search = useArticleSearch(query, page, { cacheResults: true });
 
   /** Update the URL with a new query, resetting pagination to page 1. */
   const handleSearch = (nextQuery: string) => {
