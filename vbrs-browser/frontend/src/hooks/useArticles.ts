@@ -6,12 +6,14 @@
  * request. Requests are abortable and out-of-order responses are discarded.
  */
 
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 
 import { searchArticles, getArticle } from "../api/articles";
 import { ApiError, toErrorMessage } from "../api/client";
 import { searchResultsCache } from "../api/searchResultsCache";
 import type { Article, ArticleListResponse } from "../api/types";
+import { SearchOptionsContext } from "../contexts/SearchOptionsContext";
+import { normalizeSearchQuery } from "../lib/searchOptions";
 
 /** Discriminated state of an article search request. */
 export type SearchState =
@@ -45,7 +47,9 @@ export function useArticleSearch(
     cacheResults = false,
   }: { pageSize?: number; debounceMs?: number; cacheResults?: boolean } = {},
 ): SearchState & { retry: () => void } {
-  const scope = JSON.stringify([query.trim(), pageSize ?? null]);
+  const searchOptions = useContext(SearchOptionsContext);
+  const effectiveQuery = normalizeSearchQuery(query, searchOptions);
+  const scope = JSON.stringify([effectiveQuery.trim(), pageSize ?? null]);
   const requestKey = JSON.stringify([scope, page]);
   const [retryKey, setRetryKey] = useState(0);
   const [state, setState] = useState<SearchState & { requestKey: string }>({
@@ -68,7 +72,11 @@ export function useArticleSearch(
     setState({ status: "loading", requestKey });
     const load = () =>
       searchArticles(
-        { q: query, page, ...(pageSize === undefined ? {} : { pageSize }) },
+        {
+          q: effectiveQuery,
+          page,
+          ...(pageSize === undefined ? {} : { pageSize }),
+        },
         controller.signal,
       )
         .then((data) => {
@@ -98,10 +106,21 @@ export function useArticleSearch(
       clearTimeout(timer);
       controller.abort();
     };
-  }, [query, page, pageSize, debounceMs, retryKey, cacheResults, scope, requestKey]);
+  }, [
+    effectiveQuery,
+    page,
+    pageSize,
+    debounceMs,
+    retryKey,
+    cacheResults,
+    scope,
+    requestKey,
+  ]);
 
   return {
-    ...(state.requestKey === requestKey ? state : { status: "loading" as const }),
+    ...(state.requestKey === requestKey
+      ? state
+      : { status: "loading" as const }),
     retry: () => {
       if (cacheResults) searchResultsCache.delete(scope, page);
       setRetryKey((key) => key + 1);

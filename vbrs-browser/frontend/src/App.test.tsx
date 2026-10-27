@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -6,6 +12,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getArticle, searchArticles } from "./api/articles";
 import { searchResultsCache } from "./api/searchResultsCache";
 import type { Article, ArticleListResponse } from "./api/types";
+import { SEARCH_OPTIONS_STORAGE_KEY } from "./config";
 
 import App from "./App";
 
@@ -47,6 +54,7 @@ beforeAll(() => {
 beforeEach(() => {
   vi.clearAllMocks();
   searchResultsCache.clear();
+  window.localStorage.removeItem(SEARCH_OPTIONS_STORAGE_KEY);
 });
 
 function emptyListing(): ArticleListResponse {
@@ -54,6 +62,89 @@ function emptyListing(): ArticleListResponse {
 }
 
 describe("App", () => {
+  it("applies spelling options to results and live suggestions while preserving input", async () => {
+    const user = userEvent.setup();
+    mockedSearchArticles.mockResolvedValue(emptyListing());
+    const query = "сi и ау";
+    const { unmount } = render(
+      <MemoryRouter initialEntries={[`/?q=${encodeURIComponent(query)}`]}>
+        <App />
+      </MemoryRouter>,
+    );
+    await screen.findByText(`0 articles found for "${query}"`);
+    await user.click(screen.getByRole("button", { name: "Search options" }));
+    const dialog = screen.getByRole("dialog", { name: "Search options" });
+    const checkboxes = within(dialog).getAllByRole("checkbox");
+    for (const checkbox of checkboxes) {
+      expect(checkbox).not.toBeChecked();
+      await user.click(checkbox);
+    }
+    await waitFor(() => {
+      expect(mockedSearchArticles).toHaveBeenLastCalledWith(
+        { q: "сі і аў", page: 1 },
+        expect.any(AbortSignal),
+      );
+    });
+    expect(screen.getByRole("searchbox")).toHaveValue(query);
+    await user.click(
+      within(dialog).getByRole("button", { name: "Close search options" }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Search options" }),
+    ).toHaveFocus();
+
+    await user.click(screen.getByRole("searchbox"));
+    await screen.findByText("No matching words.");
+    expect(mockedSearchArticles).toHaveBeenLastCalledWith(
+      { q: "сі і аў", page: 1, pageSize: 6 },
+      expect.any(AbortSignal),
+    );
+    await user.type(screen.getByRole("searchbox"), "{End}!");
+    await user.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => {
+      expect(mockedSearchArticles).toHaveBeenLastCalledWith(
+        { q: "сі і аў!", page: 1 },
+        expect.any(AbortSignal),
+      );
+    });
+    expect(screen.getByRole("searchbox")).toHaveValue(`${query}!`);
+
+    unmount();
+    render(
+      <MemoryRouter>
+        <App />
+      </MemoryRouter>,
+    );
+    await user.click(screen.getByRole("button", { name: "Search options" }));
+    for (const checkbox of screen.getAllByRole("checkbox")) {
+      expect(checkbox).toBeChecked();
+    }
+  });
+
+  it.each(["escape", "backdrop"])(
+    "dismisses search options with %s",
+    async (method) => {
+      const user = userEvent.setup();
+      mockedSearchArticles.mockResolvedValue(emptyListing());
+      render(
+        <MemoryRouter>
+          <App />
+        </MemoryRouter>,
+      );
+      const trigger = screen.getByRole("button", { name: "Search options" });
+      await user.click(trigger);
+      const dialog = screen.getByRole("dialog", { name: "Search options" });
+      if (method === "escape") {
+        fireEvent(dialog, new Event("cancel", { cancelable: true }));
+      } else {
+        fireEvent.pointerDown(dialog);
+        fireEvent.click(dialog);
+      }
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(trigger).toHaveFocus();
+    },
+  );
+
   it("opens a live match without losing the unsubmitted draft", async () => {
     const user = userEvent.setup();
     mockedSearchArticles.mockImplementation(async (params) =>

@@ -35,6 +35,12 @@ Elasticsearch; the web application searches and displays the articles.
   other pages. Older pages are evicted; changing the query or page size clears
   the cache. Live suggestions and article-detail requests bypass it. A browser
   reload clears cached results so the next request retrieves fresh data.
+  The universal-access button in the header opens optional spelling rules for
+  searches and live suggestions: Latin `i/I` immediately after Cyrillic becomes
+  `і/І`, Cyrillic `и/И` becomes `і/І`, and `у/У` after `аоуеюё` (either case)
+  becomes `ў/Ў`. Rules are off by default, preserve case, and are remembered in
+  browser storage. The input and URL retain the entered spelling; requests and
+  cache keys use the adjusted query.
 - **Ingestion** (`vbrs-browser/scripts/`) — command-line importer
   (`python -m scripts.import_dictionary ...`), the container entrypoint, and
   the `es_certs_init.sh` one-shot that bootstraps Elasticsearch's TLS
