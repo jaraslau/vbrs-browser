@@ -243,8 +243,19 @@ Behavior notes:
   the configured `page_size` value and is clamped to `max_page_size`; the
   effective value is echoed back in the response.
   Nonblank queries match the beginning of the full headword or transliteration,
-  case-insensitively; later words, definitions, and raw article text do not match.
-  This applies to both live previews and submitted searches.
+  case-insensitively, and also find similar complete names with typos (including
+  swapped adjacent letters). Direct prefix matches come first; within each
+  match group, source line order is preserved. Matching compares whole names
+  rather than individual later words; definitions and raw article text are not
+  searched.
+  This applies to both live previews and submitted searches. Fuzzy matching uses
+  the entire headword/transliteration value, including spaces and punctuation;
+  it does not provide typo-tolerant autocomplete for arbitrary partial names.
+  In `.env.backend`, `SEARCH_FUZZINESS=AUTO` allows no edits for queries of 1–2
+  characters, one edit for 3–5, and two edits for longer queries. Set it to `0`
+  to disable typo tolerance, or `1`/`2` for a fixed edit limit.
+  `SEARCH_FUZZY_MAX_EXPANSIONS` caps candidate terms per field (default and
+  maximum: 50).
   Numbered pages beyond Elasticsearch's 10,000-hit result window use bounded
   `search_after` requests within a short-lived point-in-time snapshot. Skipped
   articles are not downloaded; only their sort cursors are fetched. The snapshot

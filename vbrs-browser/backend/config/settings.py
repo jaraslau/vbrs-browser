@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 from functools import lru_cache
-from typing import Final
+from typing import Final, Literal
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -65,6 +65,8 @@ class Settings(BaseSettings):
 
     page_size: int = Field(default=20, ge=1)
     max_page_size: int = Field(default=100, ge=1, le=MAX_ES_RESULT_WINDOW)
+    search_fuzziness: Literal["AUTO", "0", "1", "2"] = "AUTO"
+    search_fuzzy_max_expansions: int = Field(default=50, ge=1, le=50)
 
     ingestion_batch_size: int = Field(default=1000, ge=1)
 

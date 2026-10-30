@@ -102,7 +102,7 @@ class ArticleRepository:
         page: int,
         page_size: int,
     ) -> ArticlePage:
-        """Search headword/transliteration prefixes, or list all articles when blank.
+        """Search headword/transliteration prefixes and typos, or list articles when blank.
 
         ``None`` or a blank ``query`` returns a deterministic paginated listing
         of all articles.

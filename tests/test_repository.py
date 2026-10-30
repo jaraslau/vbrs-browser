@@ -107,9 +107,9 @@ def test_search_articles_passes_pagination_and_query(es_client: MagicMock) -> No
     assert captured["size"] == 50
     assert captured["track_total_hits"] is True
     assert captured["rest_total_hits_as_int"] is True
-    assert captured["sort"] == ({"line": "asc"},)
+    assert captured["sort"] == ({"_score": "desc"}, {"line": "asc"})
     assert isinstance(captured["query"], Mapping)
-    assert "bool" in captured["query"]
+    assert captured["query"] == search_query("gadalin")
 
 
 def test_search_articles_trims_blank_query(es_client: MagicMock) -> None:
@@ -174,7 +174,7 @@ def _configure_windowed_search(es_client: MagicMock, total: int) -> None:
         if cursor is not None:
             assert offset == 0
             assert isinstance(cursor, list)
-            offset = int(cursor[1]) + 1
+            offset = int(cursor[-1]) + 1
         if "pit" in kwargs:
             assert "index" not in kwargs
             pit = kwargs["pit"]
@@ -185,7 +185,7 @@ def _configure_windowed_search(es_client: MagicMock, total: int) -> None:
         for position in range(offset, min(total, offset + size)):
             hit: dict[str, object] = {
                 "_id": f"id-{position}",
-                "sort": [position * 3 + 10, position],
+                "sort": [2.0 if position < total // 2 else 1.0, position * 3 + 10, position],
             }
             if kwargs.get("source", True):
                 hit["_source"] = {**_article_source(), "line": position * 3 + 10}
@@ -195,7 +195,7 @@ def _configure_windowed_search(es_client: MagicMock, total: int) -> None:
     es_client.search.side_effect = search
 
 
-@pytest.mark.parametrize("query", [None, " ч "])
+@pytest.mark.parametrize("query", [None, " ч ", " гдаалін "])
 @pytest.mark.parametrize(
     ("page", "page_size"),
     [
@@ -227,7 +227,7 @@ def test_numbered_pages_cross_result_window_without_gaps(
     expected_query = search_query(query) if query else {"match_all": {}}
     for call in es_client.search.call_args_list:
         assert call.kwargs["query"] == expected_query
-        assert call.kwargs["sort"] == ({"line": "asc"},)
+        assert call.kwargs["sort"] == ({"_score": "desc"}, {"line": "asc"})
     if offset + page_size > MAX_ES_RESULT_WINDOW:
         es_client.open_point_in_time.assert_called_once()
         es_client.close_point_in_time.assert_called_once_with(

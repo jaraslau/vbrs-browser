@@ -22,6 +22,8 @@ def test_defaults() -> None:
     assert settings.es_ca_certs is None
     assert settings.page_size == 20
     assert settings.max_page_size == 100
+    assert settings.search_fuzziness == "AUTO"
+    assert settings.search_fuzzy_max_expansions == 50
     assert settings.ingestion_batch_size == 1000
     assert settings.log_level is LogLevel.INFO
     assert settings.api_v1_prefix == "/api/v1"
@@ -37,6 +39,8 @@ def test_environment_variables_override_defaults(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setenv("ES_INDEX", "custom_dictionary")
     monkeypatch.setenv("PAGE_SIZE", "50")
     monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+    monkeypatch.setenv("SEARCH_FUZZINESS", "1")
+    monkeypatch.setenv("SEARCH_FUZZY_MAX_EXPANSIONS", "10")
 
     settings = Settings(_env_file=None)
 
@@ -45,6 +49,8 @@ def test_environment_variables_override_defaults(monkeypatch: pytest.MonkeyPatch
     assert settings.es_index == "custom_dictionary"
     assert settings.page_size == 50
     assert settings.log_level is LogLevel.DEBUG
+    assert settings.search_fuzziness == "1"
+    assert settings.search_fuzzy_max_expansions == 10
 
 
 def test_cors_origins_parsed_from_json_environment(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -122,3 +128,19 @@ def test_log_level_must_be_a_known_value() -> None:
 def test_api_prefix_must_be_well_formed() -> None:
     with pytest.raises(ValidationError):
         Settings(_env_file=None, api_v1_prefix="api/v1/")
+
+
+@pytest.mark.parametrize("value", ["3", "-1", "invalid"])
+def test_search_fuzziness_rejects_invalid_limits(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    monkeypatch.setenv("SEARCH_FUZZINESS", value)
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+
+@pytest.mark.parametrize("value", ["0", "51"])
+def test_fuzzy_expansions_stay_bounded(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
+    monkeypatch.setenv("SEARCH_FUZZY_MAX_EXPANSIONS", value)
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
