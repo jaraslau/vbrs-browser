@@ -9,6 +9,12 @@ A read-only dictionary browser: search dictionary articles and view individual
 entries. Dictionary data is supplied as JSON files and imported into
 Elasticsearch; the web application searches and displays the articles.
 
+The dataset can be found at:
+https://github.com/jaraslau/slouniki
+
+And the website is deployed at:
+https://vbrs.jaraslau.xyz
+
 ## Architecture
 
 - **Backend** (`vbrs-browser/backend/`) — Python / FastAPI, importable as the
